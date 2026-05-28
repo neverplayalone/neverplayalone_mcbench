@@ -97,32 +97,36 @@ neverplayalone_mcbench/
 
 ## Recording (optional)
 
-Pass `--record` to capture an MP4 of the agent's POV. A sidecar Node process
-joins as a second account (`RecorderCam`), spectates the agent, and writes
-frames via [prismarine-viewer's headless mode](https://github.com/PrismarineJS/prismarine-viewer) + ffmpeg.
+Pass `--record` to capture a ReplayMod-compatible visual replay. A sidecar Node
+process joins as a second account (`RecorderCam`), spectates the agent, records
+the Minecraft protocol stream, and exports it to `.mcpr`.
 
 ```bash
 mcbench run --task tasks/simple/chop_oak_log.yaml \
             --agent agents_examples/random_walker \
-            --record \
-            --record-fps 20 --record-width 640 --record-height 480 \
-            --record-pov first      # or `third`
+            --record
 ```
 
-Output lands at `results/<run_id>/recording.mp4`.
+Outputs land under `results/<run_id>/`:
+
+- `packets.jsonl.gz`: gzip-compressed Minecraft protocol packet stream
+- `packets.manifest.json`: packet-capture metadata and packet counts
+- `recording.mcpr`: ReplayMod visual replay generated from the packet stream
+
+To regenerate a ReplayMod file from a packet log:
+
+```bash
+mcbench replay export-mcpr results/<run_id>/packets.jsonl.gz
+```
+
+Open `recording.mcpr` with ReplayMod using the same Minecraft version as the
+recording.
 
 ### One-time setup for recording
 
-Recording requires `ffmpeg` plus several system libraries used by `node-canvas-webgl`:
+Recording only requires the packet-recorder Node dependencies:
 
 ```bash
-# Debian/Ubuntu
-sudo apt install -y \
-  ffmpeg \
-  libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev pkg-config \
-  libx11-dev libxi-dev libxrandr-dev libxinerama-dev libxcursor-dev libgl1-mesa-dev
-
-# then install the Node deps
 (cd mcbench/recorder && npm install)
 ```
 

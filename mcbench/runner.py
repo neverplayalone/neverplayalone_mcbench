@@ -17,6 +17,7 @@ from .config import TaskConfig
 from .grader import grade
 from .rcon import rcon_session, run_commands
 from .recorder import Recorder, RecordOptions, is_available as recorder_available, wait_for_settle
+from .replay_tool import export_mcpr
 from .server import ServerConfig, wait_for_ready
 from .trace import FinalState, Trace, TraceEvent
 
@@ -151,15 +152,17 @@ def run_task(
         if not ok:
             console.log(f"[yellow]Recording disabled[/]: {reason}")
         else:
-            record.output = out_dir / "recording.mp4"
+            record.packet_output = out_dir / "packets.jsonl.gz"
+            record.packet_manifest = out_dir / "packets.manifest.json"
+            record.replay_output = out_dir / "recording.mcpr"
             record.host = server.host
             record.port = server.game_port
             record.target_username = USERNAME
             recorder = Recorder(record)
-            console.log(f"Starting recorder → {record.output}")
+            console.log(f"Starting packet recorder → {record.packet_output}")
             recorder.start()
-            # Recorder needs to connect + open ffmpeg before the agent starts
-            # moving, or the first few seconds will be blank.
+            # Recorder needs to connect before the agent starts moving so the
+            # ReplayMod file includes the initial world state.
             wait_for_settle(2.5)
             try:
                 with rcon_session(server.host, server.rcon_port, server.rcon_password) as mcr:
@@ -200,13 +203,8 @@ def run_task(
                         run_commands(mcr, _setup_commands_for_agent(task.setup.commands, USERNAME))
                         mcr.command(f"gamemode survival {USERNAME}")
                         if recorder is not None:
-                            if record.pov == "third":
-                                mcr.command(
-                                    f"execute at {USERNAME} run tp {record.recorder_username} ~6 ~5 ~6 -135 35"
-                                )
-                            else:
-                                mcr.command(f"tp {record.recorder_username} {USERNAME}")
-                                mcr.command(f"spectate {USERNAME} {record.recorder_username}")
+                            mcr.command(f"tp {record.recorder_username} {USERNAME}")
+                            mcr.command(f"spectate {USERNAME} {record.recorder_username}")
                 except Exception as e:
                     trace.append(
                         TraceEvent(kind="error", data={"msg": f"setup failed: {e}"})
@@ -228,14 +226,20 @@ def run_task(
         if recorder is not None:
             console.log("Stopping recorder…")
             recorder.stop()
-            if record and record.output.exists() and record.output.stat().st_size > 0:
-                console.log(f"Recording saved: {record.output}")
-                if record.output.stat().st_size < 10_000 and recorder.stderr_log:
-                    console.log("[yellow]Recorder stderr (tail):[/]")
-                    for line in recorder.stderr_log[-40:]:
-                        console.log(f"  {line}")
+            if record and record.packet_output and record.packet_output.exists():
+                console.log(f"Packet log saved: {record.packet_output}")
+                if record.packet_manifest and record.packet_manifest.exists():
+                    console.log(f"Packet manifest saved: {record.packet_manifest}")
+                if record.replay_output:
+                    try:
+                        replay_path = export_mcpr(record.packet_output, output=record.replay_output)
+                        console.log(f"ReplayMod recording saved: {replay_path}")
+                    except Exception as e:
+                        trace.append(
+                            TraceEvent(kind="error", data={"msg": f"replay export failed: {e}"})
+                        )
             else:
-                console.log("[yellow]Recording produced no output.[/]")
+                console.log("[yellow]Packet recording produced no output.[/]")
                 if recorder.stderr_log:
                     console.log("[yellow]Recorder stderr (tail):[/]")
                     for line in recorder.stderr_log[-40:]:
