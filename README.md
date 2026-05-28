@@ -1,8 +1,12 @@
-# neverplayalone_mcbench
+# MineCraft Benchmark
 
-Benchmark harness for **mineflayer-style Minecraft agents** — protocol-level bots that connect to a real Minecraft server, with structured world state instead of pixels.
+**A reproducible Minecraft benchmark harness for evaluating autonomous agents in real server environments.**
 
-Inspired by [MCU](https://arxiv.org/abs/2310.08367), but built for production-realistic agents instead of vision policies. Each task runs on an **ephemeral Paper server in Docker**, so every evaluation starts from a clean, reproducible world.
+Never Play Alone MCBench runs task-based evaluations for Minecraft agents that connect through the normal game protocol. It is designed for **mineflayer-style agents**, scripted bots, and LLM-driven agents that act in a real Minecraft server using structured state instead of pixels.
+
+Each run starts an **ephemeral Paper server in Docker**, initializes the world with task-specific commands, launches the agent, records a structured trace, and grades the result with deterministic rules or an optional LLM rubric.
+
+Inspired by [MCU](https://arxiv.org/abs/2310.08367), but focused on production-realistic protocol agents rather than vision policies.
 
 ## Architecture
 
