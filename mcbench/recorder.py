@@ -1,13 +1,8 @@
-"""Sidecar recorder process: spawns the Node recorder under mcbench/recorder/.
-
-Optional dependency. If `--record` is passed but `node_modules/` or ffmpeg are
-missing, the runner logs a warning and continues without video.
-"""
+"""Sidecar packet recorder process: spawns the Node recorder under mcbench/recorder/."""
 
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import subprocess
 import threading
@@ -28,97 +23,28 @@ def _node_bin() -> str:
 
 @dataclass
 class RecordOptions:
-    output: Path
     target_username: str
+    packet_output: Path | None = None
+    packet_manifest: Path | None = None
+    replay_output: Path | None = None
     # Minecraft caps usernames at 16 chars — keep this short.
     recorder_username: str = "RecorderCam"
-    width: int = 640
-    height: int = 480
-    fps: int = 20
-    pov: str = "first"  # "first" or "third"
     host: str = "127.0.0.1"
     port: int = 25565
 
 
 def is_available() -> tuple[bool, str | None]:
-    """Quick preflight: report whether the recorder can run on this machine.
-
-    Catches the common breakages so users see a clear message instead of a
-    cryptic "createCanvas is not a function" from inside prismarine-viewer.
-    """
+    """Quick preflight: report whether the packet recorder can run on this machine."""
     if not (RECORDER_DIR / "node_modules").exists():
         return False, (
             f"recorder Node deps missing — run: "
-            f"(cd {RECORDER_DIR} && npm install)\n"
-            f"  also requires system deps (Linux):\n"
-            f"    sudo apt install -y ffmpeg libcairo2-dev libpango1.0-dev "
-            f"libjpeg-dev libgif-dev librsvg2-dev pkg-config "
-            f"libx11-dev libxi-dev libxrandr-dev libxinerama-dev "
-            f"libxcursor-dev libgl1-mesa-dev"
-        )
-    if shutil.which("ffmpeg") is None:
-        return False, "ffmpeg not found on PATH (apt install ffmpeg)"
-    if not (RECORDER_DIR / "node_modules" / "node-canvas-webgl").exists():
-        return False, (
-            "node-canvas-webgl failed to install — usually means the `gl` native "
-            "module couldn't build. Install OpenGL/X11 dev headers and retry:\n"
-            "    sudo apt install -y libx11-dev libxi-dev libxrandr-dev "
-            "libxinerama-dev libxcursor-dev libgl1-mesa-dev\n"
-            f"then: (cd {RECORDER_DIR} && rm -rf node_modules && npm install)"
-        )
-    nested_canvas_binary = (
-        RECORDER_DIR
-        / "node_modules"
-        / "node-canvas-webgl"
-        / "node_modules"
-        / "canvas"
-        / "build"
-        / "Release"
-        / "canvas.node"
-    )
-    node_version = subprocess.run(
-        [_node_bin(), "-p", "process.versions.node"],
-        check=False,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if node_version.startswith("22.") and not nested_canvas_binary.exists():
-        return False, (
-            "recorder native dependency missing: node-canvas-webgl depends on "
-            "canvas@2.x, which has no prebuilt binary for Node 22 on this host. "
-            "Use Node 20 LTS for the recorder, or install a C++ toolchain plus "
-            "the README canvas/OpenGL system packages and reinstall:\n"
-            f"    cd {RECORDER_DIR} && rm -rf node_modules package-lock.json && npm install"
-        )
-    gl_binary = (
-        RECORDER_DIR
-        / "node_modules"
-        / "gl"
-        / "build"
-        / "Release"
-        / "webgl.node"
-    )
-    if not gl_binary.exists() and shutil.which("g++-11") is None and shutil.which("g++") is None:
-        return False, (
-            "recorder native dependency missing: the `gl` module is not built, "
-            "and no C++ compiler was found on PATH. Install build-essential/g++ "
-            "plus the README OpenGL/X11 packages, then reinstall recorder deps:\n"
-            f"    cd {RECORDER_DIR} && npm install && npm rebuild gl --update-binary"
-        )
-    if not gl_binary.exists() and not Path("/usr/include/X11/Xlib.h").exists():
-        return False, (
-            "recorder native dependency missing: the `gl` module is not built, "
-            "and X11 headers are missing (`X11/Xlib.h`). Install the X11/OpenGL "
-            "dev packages, then rebuild:\n"
-            "    sudo apt install -y libx11-dev libxi-dev libxrandr-dev "
-            "libxinerama-dev libxcursor-dev libgl1-mesa-dev\n"
-            f"    cd {RECORDER_DIR} && npm rebuild gl --update-binary"
+            f"(cd {RECORDER_DIR} && npm install)"
         )
     probe = subprocess.run(
         [
             _node_bin(),
             "-e",
-            "require('node-canvas-webgl'); require('prismarine-viewer').headless",
+            "require('mineflayer')",
         ],
         cwd=RECORDER_DIR,
         check=False,
@@ -129,9 +55,8 @@ def is_available() -> tuple[bool, str | None]:
         detail = (probe.stderr or probe.stdout).strip().splitlines()
         tail = "\n".join(detail[-8:])
         return False, (
-            "recorder Node deps are installed but native canvas/WebGL modules "
-            "do not load. Reinstall the recorder dependencies after installing "
-            "the README system packages:\n"
+            "recorder Node deps are installed but mineflayer does not load. "
+            f"Reinstall the recorder dependencies:\n"
             f"    cd {RECORDER_DIR} && rm -rf node_modules package-lock.json && npm install\n"
             f"Node probe failed with:\n{tail}"
         )
@@ -148,19 +73,23 @@ class Recorder:
         self._stderr_lines: list[str] = []
 
     def start(self) -> None:
+        packet_output = self.opts.packet_output or Path("packets.jsonl.gz").resolve()
+        packet_manifest = self.opts.packet_manifest or packet_output.with_name(
+            "packets.manifest.json"
+        )
+        self.opts.packet_output = packet_output
+        self.opts.packet_manifest = packet_manifest
+        self.opts.replay_output = self.opts.replay_output or packet_output.with_name("recording.mcpr")
         env = {
             **os.environ,
             "MCBENCH_REC_HOST": self.opts.host,
             "MCBENCH_REC_PORT": str(self.opts.port),
             "MCBENCH_REC_USERNAME": self.opts.recorder_username,
             "MCBENCH_REC_TARGET": self.opts.target_username,
-            "MCBENCH_REC_OUTPUT": str(self.opts.output),
-            "MCBENCH_REC_WIDTH": str(self.opts.width),
-            "MCBENCH_REC_HEIGHT": str(self.opts.height),
-            "MCBENCH_REC_FPS": str(self.opts.fps),
-            "MCBENCH_REC_POV": self.opts.pov,
+            "MCBENCH_REC_PACKET_OUTPUT": str(packet_output),
+            "MCBENCH_REC_PACKET_MANIFEST": str(packet_manifest),
         }
-        self.opts.output.parent.mkdir(parents=True, exist_ok=True)
+        packet_output.parent.mkdir(parents=True, exist_ok=True)
         self.proc = subprocess.Popen(
             [_node_bin(), "index.js"],
             cwd=RECORDER_DIR,
@@ -196,5 +125,5 @@ class Recorder:
 
 
 def wait_for_settle(seconds: float = 2.0) -> None:
-    """Give the recorder a moment to connect and start ffmpeg before the agent acts."""
+    """Give the recorder a moment to connect before the agent acts."""
     time.sleep(seconds)
