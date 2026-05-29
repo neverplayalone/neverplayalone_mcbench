@@ -21,6 +21,7 @@ from rich.table import Table
 from .agents import AgentSpec, SubprocessAgent
 from .config import TaskConfig, load_task
 from .grader import grade
+from .recorder import RecordOptions
 from .runner import RECORDING_DIR, RESULTS_DIR, run_task
 from .taskgen import STYLES, generate
 
@@ -37,6 +38,7 @@ class Defaults(BaseModel):
     count: int = 5
     seed_base: int = 0
     reset: bool = True
+    record: bool = False  # capture a ReplayMod .mcpr per task into recording/
 
 
 class StyleEntry(BaseModel):
@@ -138,11 +140,15 @@ def run_bench(
         raise ValueError("no agent specified — set `agent.path` in the config or pass --agent")
     agent_name = (cfg.agent.name if cfg.agent and cfg.agent.name else None) or Path(agent_path).name
 
-    # A round replaces the previous one: wipe results/ + recording/ so that when
-    # this bench finishes, those folders hold exactly this round's tasks (several
-    # same-style tasks with different seeds all coexist via their distinct ids).
+    # Both folders are static (always exist); a round replaces their contents.
+    # results/ is always cleared so it holds exactly this round's tasks.
+    # recording/ is only cleared when this round actually records (record: true),
+    # so a non-recording round doesn't throw away a prior recorded run's replays.
     shutil.rmtree(RESULTS_DIR, ignore_errors=True)
-    shutil.rmtree(RECORDING_DIR, ignore_errors=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    if cfg.defaults.record:
+        shutil.rmtree(RECORDING_DIR, ignore_errors=True)
+    RECORDING_DIR.mkdir(parents=True, exist_ok=True)
 
     out = Path(out_dir or cfg.output)
     out.mkdir(parents=True, exist_ok=True)
@@ -156,7 +162,8 @@ def run_bench(
         outcome, score = "error", 0.0
         try:
             agent = SubprocessAgent(AgentSpec(name=agent_name, path=str(agent_path)))
-            trace = run_task(task, agent, reset=cfg.defaults.reset)
+            rec = RecordOptions(target_username="BenchmarkBot") if cfg.defaults.record else None
+            trace = run_task(task, agent, reset=cfg.defaults.reset, record=rec)
             report = grade(task, trace)
             outcome, score = report["outcome"], float(report["score"])
         except Exception as e:  # one bad task shouldn't abort the whole suite
