@@ -38,6 +38,11 @@ class TaskConfig(BaseModel):
     setup: SetupSpec = Field(default_factory=SetupSpec)
     timeout_seconds: int = 120
     success: SuccessSpec = Field(default_factory=SuccessSpec)
+    # Per-task reset bounds: the world reset only restores this box around spawn.
+    # Generated tasks set these to the bounding box of everything they place
+    # (plus margin) so the reset always covers exactly the task's footprint.
+    reset_radius: int = 48
+    reset_ceiling: int = 64
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
