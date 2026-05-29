@@ -188,7 +188,9 @@ STYLE_LIST = [
     CombatStyle(id="hunt_skeletons", mobs=["skeleton", "stray"]),
     CombatStyle(id="hunt_arthropods", mobs=["spider", "cave_spider", "silverfish"]),
     CombatStyle(id="hunt_illagers", mobs=["pillager", "vindicator"]),
-    CombatStyle(id="hunt_farm_animals", mobs=["rabbit", "goat", "horse", "donkey"]),
+    # Pool kept difficulty-homogeneous: easy low-HP animals (dropped tanky,
+    # rideable horse/donkey so seeds of this style stay comparably hard).
+    CombatStyle(id="hunt_farm_animals", mobs=["rabbit", "goat", "pig", "cow"]),
 
     # --- Crafting / smelting: success = output item in inventory ---
     CraftStyle(id="craft_basics", recipes=[

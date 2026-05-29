@@ -154,5 +154,38 @@ def taskgen_cmd(
         console.log(f"wrote {path}  — {cfg.goal}")
 
 
+@main.command("bench")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(path_type=Path),
+    default=Path("bench.yaml"),
+    help="Benchmark suite config (default: ./bench.yaml)",
+)
+@click.option(
+    "--agent",
+    "agent_override",
+    type=click.Path(exists=True, path_type=Path),
+    default=None,
+    help="Override the agent in the config (the field you swap most often)",
+)
+@click.option("--out", "out_override", type=click.Path(path_type=Path), default=None)
+def bench_cmd(config_path: Path, agent_override: Path | None, out_override: Path | None) -> None:
+    """Run a config-defined benchmark suite and print an aggregate report."""
+    from .bench import load_bench_config, run_bench
+
+    if not config_path.exists():
+        raise click.ClickException(f"config not found: {config_path} (pass --config)")
+    cfg = load_bench_config(config_path)
+    try:
+        run_bench(
+            cfg,
+            agent_path=str(agent_override) if agent_override else None,
+            out_dir=out_override,
+        )
+    except (ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+
 if __name__ == "__main__":
     main()

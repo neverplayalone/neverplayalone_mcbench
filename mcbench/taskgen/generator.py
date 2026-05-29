@@ -38,6 +38,9 @@ def generate(style_id: str, seed: int, difficulty: str = "simple") -> TaskConfig
         raise KeyError(f"unknown style {style_id!r}; known: {sorted(STYLES)}")
     rng = stable_rng(style_id, difficulty, seed)
     cfg = STYLES[style_id].generate(rng, difficulty)
+    # Bake the seed into the id so distinct seeds never collide on filename/label,
+    # even when they happen to sample the same target+difficulty.
+    cfg.id = f"{cfg.id}__s{seed}"
     _assert_within_bounds(cfg)
     return cfg
 
