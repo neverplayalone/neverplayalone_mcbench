@@ -188,7 +188,7 @@ def run_task(
         # persist across runs and break reproducibility. Done in place over RCON
         # (no container restart) to keep it fast.
         console.log("Resetting world for a clean run…")
-        clean_world_inplace(server)
+        clean_world_inplace(server, radius=task.reset_radius, ceiling=task.reset_ceiling)
 
     trace = Trace(task_id=task.id, agent_name=agent.spec.name, started_at=time.time())
 

@@ -112,5 +112,47 @@ def run_cmd(
         raise click.ClickException(str(e)) from e
 
 
+@main.command("taskgen")
+@click.option("--style", default=None, help="Style id to generate (omit with --list to see all)")
+@click.option("--list", "list_styles", is_flag=True, help="List available styles and exit")
+@click.option("--seed", type=int, default=0, help="Base seed (instance i uses seed+i)")
+@click.option("--n", type=int, default=1, help="Number of seeded instances to generate")
+@click.option(
+    "--difficulty", type=click.Choice(["simple", "hard"]), default="simple"
+)
+@click.option(
+    "--out",
+    type=click.Path(path_type=Path),
+    default=Path("tasks/generated"),
+    help="Output directory (a <difficulty>/ subfolder is created)",
+)
+def taskgen_cmd(
+    style: str | None,
+    list_styles: bool,
+    seed: int,
+    n: int,
+    difficulty: str,
+    out: Path,
+) -> None:
+    """Generate seeded task YAMLs from a parameterized style."""
+    from .taskgen import STYLES, generate, write_task
+
+    if list_styles or not style:
+        for sid, spec in sorted(STYLES.items()):
+            console.print(f"  [bold]{sid}[/]  ({spec.category})")
+        if not style:
+            console.print("\nPass --style <id> to generate.")
+        return
+    if style not in STYLES:
+        raise click.ClickException(f"unknown style {style!r}; run with --list")
+    for i in range(n):
+        try:
+            cfg = generate(style, seed + i, difficulty)
+        except ValueError as e:  # bounds invariant violated
+            raise click.ClickException(f"generation rejected: {e}") from e
+        path = write_task(cfg, out / difficulty)
+        console.log(f"wrote {path}  — {cfg.goal}")
+
+
 if __name__ == "__main__":
     main()
