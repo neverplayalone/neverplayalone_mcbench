@@ -16,7 +16,7 @@ from typing import Any
 MCPR_FILE_FORMAT_VERSION = 14
 REPLAY_STATES = {"login", "configuration", "play"}
 PROTOCOL_TO_VERSION = {
-    765: "1.20.4",
+    774: "1.21.11",
 }
 
 

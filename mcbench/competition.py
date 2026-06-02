@@ -75,8 +75,8 @@ class CompetitionScoringConfig(BaseModel):
 class ResourceCompetitionConfig(BaseModel):
     id: str = "resource_gathering_v1"
     seed: int = 0
-    minecraft_version: str = "1.20.4"
-    world_type: str = "DEFAULT"
+    minecraft_version: str = "1.21.11"
+    world_type: str = "normal"
     generate_structures: bool = True
     difficulty: Literal["peaceful", "easy", "normal", "hard"] = "normal"
     memory: str = "2G"
@@ -447,9 +447,9 @@ def _run(cmd: list[str], label: str) -> subprocess.CompletedProcess[str]:
 
 def _configure_world_start(server: ServerConfig, cfg: ResourceCompetitionConfig) -> None:
     with rcon_session(server.host, server.rcon_port, server.rcon_password) as mcr:
-        mcr.command("gamerule keepInventory false")
-        mcr.command("gamerule doDaylightCycle true")
-        mcr.command("gamerule doWeatherCycle true")
+        mcr.command("gamerule keep_inventory false")
+        mcr.command("gamerule advance_time true")
+        mcr.command("gamerule advance_weather true")
         mcr.command(f"difficulty {cfg.difficulty}")
         mcr.command(f"time set {cfg.spawn_time}")
 
@@ -470,14 +470,20 @@ def _setup_competitor(mcr: MCRcon, cfg: ResourceCompetitionConfig) -> int:
 
 
 def _give_kit_item(mcr: MCRcon, username: str, kit: KitItem) -> None:
-    item = f"minecraft:{kit.item}"
-    if kit.enchantments:
-        ench = ",".join(f'{{id:"minecraft:{name}",lvl:{level}s}}' for name, level in _enchants(kit))
-        item = f"{item}{{Enchantments:[{ench}]}}"
+    item = _kit_item_stack(kit)
     if kit.slot:
         mcr.command(f"item replace entity {username} {kit.slot} with {item} {kit.count}")
     else:
         mcr.command(f"give {username} {item} {kit.count}")
+
+
+def _kit_item_stack(kit: KitItem) -> str:
+    item = f"minecraft:{kit.item}"
+    if not kit.enchantments:
+        return item
+    levels = {f"minecraft:{name}": level for name, level in _enchants(kit)}
+    enchantments = json.dumps(levels, separators=(",", ":"))
+    return f"{item}[minecraft:enchantments={enchantments}]"
 
 
 def _enchants(kit: KitItem) -> list[tuple[str, int]]:

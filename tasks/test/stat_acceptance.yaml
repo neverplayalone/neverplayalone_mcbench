@@ -6,7 +6,7 @@ setup:
   world: flat
   commands:
     - /gamemode survival BenchmarkBot
-    - /gamerule doMobSpawning false
+    - /gamerule spawn_mobs false
     - /time set midnight
     - /difficulty normal
     - /kill @e[type=!minecraft:player]

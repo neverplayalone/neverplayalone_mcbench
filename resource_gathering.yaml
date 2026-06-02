@@ -1,7 +1,7 @@
 id: resource_gathering_v1
 seed: 20260602
-minecraft_version: "1.20.4"
-world_type: DEFAULT
+minecraft_version: "1.21.11"
+world_type: normal
 generate_structures: true
 difficulty: normal
 memory: 2G

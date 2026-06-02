@@ -134,7 +134,7 @@ def wipe_player_data() -> None:
             pass
 
 
-# Block layers of the generated FLAT world (LEVEL_TYPE=FLAT, 1.20.4):
+# Block layers of the generated flat world (LEVEL_TYPE=flat, 1.21.11):
 #   y=-64 bedrock, y=-63..-62 dirt, y=-61 grass_block, y>=-60 air.
 _FLAT_FLOOR_Y = -64
 _FLAT_SURFACE_Y = -61  # topmost solid layer (grass)

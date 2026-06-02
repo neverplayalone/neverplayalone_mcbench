@@ -220,8 +220,8 @@ def run_task(
     # 1. World-level setup that doesn't depend on the player existing
     console.log("Setting world gamerules…")
     with rcon_session(server.host, server.rcon_port, server.rcon_password) as mcr:
-        mcr.command("gamerule doDaylightCycle false")
-        mcr.command("gamerule doWeatherCycle false")
+        mcr.command("gamerule advance_time false")
+        mcr.command("gamerule advance_weather false")
         mcr.command("time set day")
 
     # 2. Optional: start the recorder sidecar so it's spectating before the agent acts.

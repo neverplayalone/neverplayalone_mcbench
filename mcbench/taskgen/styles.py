@@ -71,7 +71,7 @@ class CombatStyle:
                   "legs": "iron_leggings", "feet": "iron_boots"}
         slots = list(pieces) if difficulty == "simple" else ["head", "chest"]
         cmds = _base_commands() + [
-            "/gamerule doMobSpawning false",
+            "/gamerule spawn_mobs false",
             "/time set midnight",
             "/difficulty normal",
             give("diamond_sword", 1),

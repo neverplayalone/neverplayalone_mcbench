@@ -5,8 +5,10 @@ import unittest
 
 from mcbench.competition import (
     CompetitionScoringConfig,
+    KitItem,
     ResourceCompetitionConfig,
     ResourceMilestones,
+    _kit_item_stack,
     score_resource_gathering,
 )
 from mcbench.trace import FinalState, Trace, TraceEvent
@@ -29,6 +31,26 @@ def _config() -> ResourceCompetitionConfig:
 
 
 class CompetitionScoringTest(unittest.TestCase):
+    def test_resource_config_defaults_to_minecraft_1_21_11(self) -> None:
+        cfg = _config()
+
+        self.assertEqual(cfg.minecraft_version, "1.21.11")
+        self.assertEqual(cfg.world_type, "normal")
+
+    def test_kit_item_stack_uses_1_21_item_components(self) -> None:
+        item = _kit_item_stack(
+            KitItem(
+                item="netherite_pickaxe",
+                enchantments=["efficiency:5", "unbreaking:3", "fortune:3"],
+            )
+        )
+
+        self.assertEqual(
+            item,
+            'minecraft:netherite_pickaxe[minecraft:enchantments={"minecraft:efficiency":5,'
+            '"minecraft:unbreaking":3,"minecraft:fortune":3}]',
+        )
+
     def test_scores_resource_milestones_and_survival(self) -> None:
         cfg = _config()
         trace = Trace(task_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
