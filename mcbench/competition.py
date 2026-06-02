@@ -1,0 +1,475 @@
+"""Resource-gathering competition runner.
+
+This path is intentionally separate from the task benchmark runner. A resource
+competition run evaluates one agent in one isolated Minecraft world for a fixed
+wall-clock duration, then scores only server-authoritative final inventory.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Literal
+
+import yaml
+from mcrcon import MCRcon
+from pydantic import BaseModel, Field, field_validator
+from rich.console import Console
+
+from .agents import Agent
+from .agents.base import AgentRunContext
+from .rcon import rcon_session
+from .server import DOCKER_DIR, REPO_ROOT, ServerConfig, wait_for_ready
+from .trace import FinalState, Trace, TraceEvent
+
+console = Console()
+
+USERNAME = "BenchmarkBot"
+COMPETITION_RESULTS_DIR = REPO_ROOT / "results" / "resource_gathering"
+
+
+class KitItem(BaseModel):
+    item: str
+    count: int = 1
+    enchantments: list[str] = Field(default_factory=list)
+    slot: str | None = None
+
+    @field_validator("count")
+    @classmethod
+    def count_must_be_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("kit item count must be positive")
+        return value
+
+
+class ResourceMilestones(BaseModel):
+    item: str
+    milestones: list[int]
+    points: float
+
+    @field_validator("milestones")
+    @classmethod
+    def milestones_must_increase(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("resource milestones cannot be empty")
+        if any(v <= 0 for v in value):
+            raise ValueError("resource milestones must be positive")
+        if value != sorted(set(value)):
+            raise ValueError("resource milestones must be strictly increasing")
+        return value
+
+
+class CompetitionScoringConfig(BaseModel):
+    survival_points: float = 50.0
+    efficiency_points: float = 50.0
+    efficiency_min_resource_score: float = 100.0
+
+
+class ResourceCompetitionConfig(BaseModel):
+    id: str = "resource_gathering_v1"
+    seed: int = 0
+    minecraft_version: str = "1.20.4"
+    world_type: str = "DEFAULT"
+    generate_structures: bool = True
+    difficulty: Literal["peaceful", "easy", "normal", "hard"] = "normal"
+    memory: str = "2G"
+    duration_seconds: int = 1200
+    spawn_time: int = 0
+    username: str = USERNAME
+    goal: str = (
+        "Gather as many scored resources as possible before the 20 minute timer ends. "
+        "Final scoring counts only resources in your inventory."
+    )
+    kit: list[KitItem] = Field(default_factory=list)
+    resources: list[ResourceMilestones]
+    scoring: CompetitionScoringConfig = Field(default_factory=CompetitionScoringConfig)
+
+    @field_validator("duration_seconds")
+    @classmethod
+    def duration_must_be_positive(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("duration_seconds must be positive")
+        return value
+
+
+@dataclass(frozen=True)
+class CompetitionSlot:
+    """One isolated evaluation slot.
+
+    Parallelism later is just multiple slots with different ids/ports/data dirs.
+    """
+
+    slot_id: int = 0
+    host: str = "127.0.0.1"
+    base_game_port: int = 25565
+    base_rcon_port: int = 25575
+    rcon_password: str = "mcbench"
+    container_prefix: str = "mcbench-resource"
+    data_root: Path = COMPETITION_RESULTS_DIR / "slots"
+
+    @property
+    def game_port(self) -> int:
+        return self.base_game_port + self.slot_id
+
+    @property
+    def rcon_port(self) -> int:
+        return self.base_rcon_port + self.slot_id
+
+    @property
+    def container_name(self) -> str:
+        return f"{self.container_prefix}-{self.slot_id}"
+
+    @property
+    def data_dir(self) -> Path:
+        return self.data_root / f"slot-{self.slot_id}" / "data"
+
+    def server_config(self) -> ServerConfig:
+        return ServerConfig(
+            host=self.host,
+            game_port=self.game_port,
+            rcon_port=self.rcon_port,
+            rcon_password=self.rcon_password,
+        )
+
+
+def load_resource_competition_config(path: str | Path) -> ResourceCompetitionConfig:
+    raw = yaml.safe_load(Path(path).read_text()) or {}
+    return ResourceCompetitionConfig.model_validate(raw)
+
+
+def run_resource_gathering_competition(
+    cfg: ResourceCompetitionConfig,
+    agent: Agent,
+    slot: CompetitionSlot | None = None,
+    out_dir: str | Path | None = None,
+    keep_server: bool = False,
+) -> dict[str, Any]:
+    slot = slot or CompetitionSlot()
+    run_id = f"{cfg.id}__{agent.spec.name}__seed{cfg.seed}__slot{slot.slot_id}"
+    output = Path(out_dir) if out_dir else COMPETITION_RESULTS_DIR / run_id
+    shutil.rmtree(output, ignore_errors=True)
+    output.mkdir(parents=True, exist_ok=True)
+
+    trace = Trace(task_id=cfg.id, agent_name=agent.spec.name, started_at=time.time())
+    setup_done = False
+    timed_out = False
+    death_baseline = 0
+    slot_started = False
+
+    try:
+        console.log(
+            f"[bold cyan]Resource gathering[/]: {run_id} | "
+            f"slot {slot.slot_id} | ports {slot.game_port}/{slot.rcon_port}"
+        )
+        _start_slot(slot, cfg)
+        slot_started = True
+        try:
+            server = slot.server_config()
+            wait_for_ready(server, timeout=600)
+            _configure_world_start(server, cfg)
+
+            ctx = AgentRunContext(
+                host=server.host,
+                port=server.game_port,
+                username=cfg.username,
+                goal=_goal_text(cfg),
+                timeout_seconds=cfg.duration_seconds,
+            )
+            console.log(
+                f"Launching agent [bold]{agent.spec.name}[/] for {cfg.duration_seconds}s..."
+            )
+            for event in agent.run(ctx):
+                trace.append(event)
+                if event.kind == "info" and event.data.get("msg") == "timeout":
+                    timed_out = True
+                if not setup_done and event.kind == "ready":
+                    console.log("Agent spawned; applying competition kit and timer setup...")
+                    with rcon_session(
+                        server.host, server.rcon_port, server.rcon_password
+                    ) as mcr:
+                        death_baseline = _setup_competitor(mcr, cfg)
+                    setup_done = True
+                if event.kind == "done":
+                    console.log("Agent reported done.")
+                    break
+        finally:
+            trace.ended_at = time.time()
+            trace.timed_out = timed_out
+            agent.stop()
+
+        console.log("Capturing competition final state...")
+        final_snapshot: dict[str, Any]
+        try:
+            with rcon_session(slot.host, slot.rcon_port, slot.rcon_password) as mcr:
+                final_snapshot = _capture_final_snapshot(mcr, cfg, death_baseline)
+                trace.final_state = final_snapshot["final_state"]
+        except Exception as e:
+            final_snapshot = {"error": f"snapshot failed: {e}", "deaths": 0, "alive": False}
+            trace.append(TraceEvent(kind="error", data=final_snapshot))
+
+        report = score_resource_gathering(cfg, trace, final_snapshot)
+        (output / "trace.json").write_text(trace.model_dump_json(indent=2))
+        (output / "score.json").write_text(json.dumps(report, indent=2))
+        (output / "config.json").write_text(cfg.model_dump_json(indent=2))
+
+        console.log(
+            f"[bold green]Score[/]: {report['score']:.1f} / {report['max_score']:.1f}"
+        )
+        console.log(f"Artifacts: {output}")
+        return report
+    finally:
+        if keep_server and slot_started:
+            console.log(f"[yellow]Keeping server container running:[/] {slot.container_name}")
+        elif slot_started:
+            _stop_slot(slot, quiet=True)
+
+
+def score_resource_gathering(
+    cfg: ResourceCompetitionConfig,
+    trace: Trace,
+    snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    snapshot = snapshot or {}
+    inventory = trace.final_state.inventory
+    resources: list[dict[str, Any]] = []
+    resource_score = 0.0
+    max_resource_score = 0.0
+
+    for spec in cfg.resources:
+        count = inventory.get(spec.item, 0)
+        achieved = sum(1 for threshold in spec.milestones if count >= threshold)
+        score = spec.points * achieved / len(spec.milestones)
+        max_resource_score += spec.points
+        resource_score += score
+        resources.append(
+            {
+                "item": spec.item,
+                "count": count,
+                "milestones": spec.milestones,
+                "achieved": achieved,
+                "points": score,
+                "max_points": spec.points,
+            }
+        )
+
+    deaths = int(snapshot.get("deaths", 0) or 0)
+    alive = bool(snapshot.get("alive", False))
+    survival_score = 0.0
+    if alive and deaths == 0:
+        survival_score = cfg.scoring.survival_points
+    elif resource_score > 0 and deaths > 0:
+        survival_score = cfg.scoring.survival_points / 2
+
+    elapsed = max(0.0, (trace.ended_at or time.time()) - trace.started_at)
+    efficiency_score = 0.0
+    finished_early = not trace.timed_out and any(e.kind == "done" for e in trace.events)
+    if finished_early and resource_score >= cfg.scoring.efficiency_min_resource_score:
+        remaining_ratio = max(0.0, (cfg.duration_seconds - elapsed) / cfg.duration_seconds)
+        efficiency_score = cfg.scoring.efficiency_points * remaining_ratio
+
+    max_score = (
+        max_resource_score + cfg.scoring.survival_points + cfg.scoring.efficiency_points
+    )
+    total = resource_score + survival_score + efficiency_score
+    return {
+        "competition_id": cfg.id,
+        "agent": trace.agent_name,
+        "seed": cfg.seed,
+        "score": total,
+        "max_score": max_score,
+        "resource_score": resource_score,
+        "survival_score": survival_score,
+        "efficiency_score": efficiency_score,
+        "elapsed_seconds": elapsed,
+        "timed_out": trace.timed_out,
+        "alive": alive,
+        "deaths": deaths,
+        "resources": resources,
+        "final_position": trace.final_state.position,
+        "final_health": trace.final_state.health,
+    }
+
+
+def _start_slot(slot: CompetitionSlot, cfg: ResourceCompetitionConfig) -> None:
+    _stop_slot(slot, quiet=True)
+    shutil.rmtree(slot.data_dir, ignore_errors=True)
+    slot.data_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = [
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        slot.container_name,
+        "-p",
+        f"{slot.game_port}:25565",
+        "-p",
+        f"{slot.rcon_port}:25575",
+        "-v",
+        f"{slot.data_dir}:/data",
+        "-v",
+        f"{DOCKER_DIR / 'bukkit.yml'}:/data/bukkit.yml:ro",
+        "-e",
+        "EULA=TRUE",
+        "-e",
+        "TYPE=PAPER",
+        "-e",
+        f"VERSION={cfg.minecraft_version}",
+        "-e",
+        f"MEMORY={cfg.memory}",
+        "-e",
+        "ONLINE_MODE=FALSE",
+        "-e",
+        "ENABLE_RCON=TRUE",
+        "-e",
+        f"RCON_PASSWORD={slot.rcon_password}",
+        "-e",
+        "RCON_PORT=25575",
+        "-e",
+        "MODE=survival",
+        "-e",
+        f"DIFFICULTY={cfg.difficulty}",
+        "-e",
+        f"LEVEL_TYPE={cfg.world_type}",
+        "-e",
+        f"GENERATE_STRUCTURES={str(cfg.generate_structures).upper()}",
+        "-e",
+        "SPAWN_PROTECTION=0",
+        "-e",
+        "VIEW_DISTANCE=10",
+        "-e",
+        "ALLOW_FLIGHT=TRUE",
+        "-e",
+        f"SEED={cfg.seed}",
+        "itzg/minecraft-server:latest",
+    ]
+    _run(cmd, f"starting competition slot {slot.slot_id}")
+
+
+def _stop_slot(slot: CompetitionSlot, quiet: bool = False) -> None:
+    result = subprocess.run(
+        ["docker", "rm", "-f", slot.container_name],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0 and not quiet and "No such container" not in result.stderr:
+        raise RuntimeError(
+            f"docker rm -f {slot.container_name} failed\n"
+            f"--- stderr ---\n{result.stderr}\n--- stdout ---\n{result.stdout}"
+        )
+
+
+def _run(cmd: list[str], label: str) -> subprocess.CompletedProcess[str]:
+    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{label} failed (exit {result.returncode})\n"
+            f"command: {' '.join(cmd)}\n"
+            f"--- stderr ---\n{result.stderr}\n--- stdout ---\n{result.stdout}"
+        )
+    return result
+
+
+def _configure_world_start(server: ServerConfig, cfg: ResourceCompetitionConfig) -> None:
+    with rcon_session(server.host, server.rcon_port, server.rcon_password) as mcr:
+        mcr.command("gamerule keepInventory false")
+        mcr.command("gamerule doDaylightCycle true")
+        mcr.command("gamerule doWeatherCycle true")
+        mcr.command(f"difficulty {cfg.difficulty}")
+        mcr.command(f"time set {cfg.spawn_time}")
+
+
+def _setup_competitor(mcr: MCRcon, cfg: ResourceCompetitionConfig) -> int:
+    mcr.command(f"op {cfg.username}")
+    mcr.command(f"clear {cfg.username}")
+    mcr.command("kill @e[type=item]")
+    mcr.command("scoreboard objectives remove mcb_deaths")
+    mcr.command("scoreboard objectives add mcb_deaths minecraft.custom:minecraft.deaths")
+    death_baseline = _read_score(mcr, cfg.username, "mcb_deaths")
+    for kit in cfg.kit:
+        _give_kit_item(mcr, cfg.username, kit)
+    mcr.command(f"gamemode survival {cfg.username}")
+    mcr.command(f"effect give {cfg.username} minecraft:saturation 3 10 true")
+    mcr.command(f"deop {cfg.username}")
+    return death_baseline
+
+
+def _give_kit_item(mcr: MCRcon, username: str, kit: KitItem) -> None:
+    item = f"minecraft:{kit.item}"
+    if kit.enchantments:
+        ench = ",".join(f'{{id:"minecraft:{name}",lvl:{level}s}}' for name, level in _enchants(kit))
+        item = f"{item}{{Enchantments:[{ench}]}}"
+    if kit.slot:
+        mcr.command(f"item replace entity {username} {kit.slot} with {item} {kit.count}")
+    else:
+        mcr.command(f"give {username} {item} {kit.count}")
+
+
+def _enchants(kit: KitItem) -> list[tuple[str, int]]:
+    out: list[tuple[str, int]] = []
+    for raw in kit.enchantments:
+        name, _, level_raw = raw.partition(":")
+        level = int(level_raw or "1")
+        out.append((name, level))
+    return out
+
+
+def _capture_final_snapshot(
+    mcr: MCRcon,
+    cfg: ResourceCompetitionConfig,
+    death_baseline: int,
+) -> dict[str, Any]:
+    state = FinalState()
+    state.position = _parse_pos(mcr.command(f"data get entity {cfg.username} Pos"))
+    state.health = _parse_scalar(mcr.command(f"data get entity {cfg.username} Health"))
+    state.food = _parse_scalar(mcr.command(f"data get entity {cfg.username} foodLevel"))
+    for resource in cfg.resources:
+        state.inventory[resource.item] = _count_item(mcr, cfg.username, resource.item)
+    deaths = max(0, _read_score(mcr, cfg.username, "mcb_deaths") - death_baseline)
+    return {
+        "final_state": state,
+        "deaths": deaths,
+        "alive": state.health is not None and state.health > 0,
+    }
+
+
+def _count_item(mcr: MCRcon, username: str, item: str) -> int:
+    raw = mcr.command(f"clear {username} minecraft:{item} 0")
+    m = re.search(r"\b(\d+)\b", raw)
+    return int(m.group(1)) if (m and "found" in raw.lower()) else 0
+
+
+def _read_score(mcr: MCRcon, username: str, objective: str) -> int:
+    raw = mcr.command(f"scoreboard players get {username} {objective}")
+    m = re.search(r"has (-?\d+)", raw)
+    return int(m.group(1)) if m else 0
+
+
+_NUM = r"-?\d+(?:\.\d+)?"
+
+
+def _parse_pos(raw: str) -> tuple[float, float, float] | None:
+    m = re.search(rf"\[({_NUM})d?, ({_NUM})d?, ({_NUM})d?\]", raw)
+    if not m:
+        return None
+    return float(m.group(1)), float(m.group(2)), float(m.group(3))
+
+
+def _parse_scalar(raw: str) -> float | None:
+    m = re.search(rf"({_NUM})[a-zA-Z]?\s*$", raw.strip())
+    return float(m.group(1)) if m else None
+
+
+def _goal_text(cfg: ResourceCompetitionConfig) -> str:
+    lines = [cfg.goal, "", "Scored resources and milestones:"]
+    for resource in cfg.resources:
+        lines.append(
+            f"- {resource.item}: {', '.join(str(m) for m in resource.milestones)}"
+        )
+    return "\n".join(lines)

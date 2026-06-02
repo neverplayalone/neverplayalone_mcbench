@@ -201,5 +201,66 @@ def bench_cmd(
         raise click.ClickException(str(e)) from e
 
 
+@main.command("resource-gather")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("resource_gathering.yaml"),
+    help="Resource-gathering competition config.",
+)
+@click.option(
+    "--agent",
+    "agent_path",
+    required=True,
+    type=click.Path(exists=True, path_type=Path),
+)
+@click.option("--agent-name", default=None, help="Display name for the agent")
+@click.option("--slot", "slot_id", type=int, default=0, help="Evaluation slot id.")
+@click.option("--base-game-port", type=int, default=25565)
+@click.option("--base-rcon-port", type=int, default=25575)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
+@click.option(
+    "--keep-server/--stop-server",
+    default=False,
+    help="Keep the slot container running after the run for debugging.",
+)
+def resource_gather_cmd(
+    config_path: Path,
+    agent_path: Path,
+    agent_name: str | None,
+    slot_id: int,
+    base_game_port: int,
+    base_rcon_port: int,
+    out_dir: Path | None,
+    keep_server: bool,
+) -> None:
+    """Run one resource-gathering competition evaluation slot."""
+    from .competition import (
+        CompetitionSlot,
+        load_resource_competition_config,
+        run_resource_gathering_competition,
+    )
+
+    cfg = load_resource_competition_config(config_path)
+    spec = AgentSpec(name=agent_name or agent_path.name, path=str(agent_path))
+    agent = SubprocessAgent(spec)
+    slot = CompetitionSlot(
+        slot_id=slot_id,
+        base_game_port=base_game_port,
+        base_rcon_port=base_rcon_port,
+    )
+    try:
+        run_resource_gathering_competition(
+            cfg,
+            agent,
+            slot=slot,
+            out_dir=out_dir,
+            keep_server=keep_server,
+        )
+    except (ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+
 if __name__ == "__main__":
     main()
