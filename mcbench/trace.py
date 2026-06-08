@@ -32,14 +32,10 @@ class FinalState(BaseModel):
     position: tuple[float, float, float] | None = None
     health: float | None = None
     food: float | None = None
-    blocks_placed: dict[str, int] = Field(default_factory=dict)
-    blocks_broken: dict[str, int] = Field(default_factory=dict)
-    entities_killed: dict[str, int] = Field(default_factory=dict)
-    chat_log: list[str] = Field(default_factory=list)
 
 
 class Trace(BaseModel):
-    task_id: str
+    challenge_id: str
     agent_name: str
     started_at: float
     ended_at: float | None = None

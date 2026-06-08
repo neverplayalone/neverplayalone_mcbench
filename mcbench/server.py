@@ -117,12 +117,8 @@ def wipe_player_data() -> None:
     Safe while the server runs: the bots are offline during reset, so nothing holds
     these files open.
 
-    Statistics (world/stats) are deliberately NOT deleted: the per-episode grading
-    reads minecraft.mined/used/killed via scoreboard objectives and measures the
-    delta against a baseline captured at setup. Deleting the stats file resets the
-    underlying stats but leaves the scoreboard objectives showing stale values,
-    desyncing baseline vs. final and zeroing every delta. Letting stats accumulate
-    keeps the objectives in sync, so the delta is always this episode's true count.
+    World statistics are deliberately not deleted here. This helper is for saved
+    player state only; world/template cleanup is handled by the slot lifecycle.
     """
     directory = DATA_DIR / "world" / "playerdata"
     if not directory.exists():
@@ -178,8 +174,7 @@ def clean_world_inplace(
     not downloads), so a full reset between runs is too slow. Instead we clean
     in place over RCON: kill leftover entities/items and restore a bounded box
     around spawn to the flat-world profile. This is near-instant and keeps runs
-    reproducible as long as the agent stays within `radius` of spawn (tasks here
-    operate within ~16 blocks of spawn, so the default leaves wide margin).
+    reproducible as long as the agent stays within `radius` of spawn.
 
     Also wipes saved player data so a dead bot can't poison later runs (see
     wipe_player_data). The bot for this run hasn't connected yet, so its files

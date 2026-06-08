@@ -1,116 +1,85 @@
-# MineCraft Benchmark
+# Never Play Alone MCBench
 
-**A reproducible Minecraft benchmark harness for evaluating autonomous agents in real server environments.**
+Validator-oriented Minecraft resource-gathering benchmark for protocol agents.
 
-Never Play Alone MCBench runs task-based evaluations for Minecraft agents that connect through the normal game protocol. It is designed for **mineflayer-style agents**, scripted bots, and LLM-driven agents that act in a real Minecraft server using structured state instead of pixels.
+The benchmark generates one shared resource challenge, builds one canonical
+world template, copies that world into isolated Docker slots, and runs one miner
+agent per slot. Each miner receives the same natural-language task, same world
+state, same spawn state, and same time limit.
 
-Each run starts an **ephemeral Paper server in Docker**, initializes the world with task-specific commands, launches the agent, records a structured trace, and grades the result with deterministic rules or an optional LLM rubric.
-
-Inspired by [MCU](https://arxiv.org/abs/2310.08367), but focused on production-realistic protocol agents rather than vision policies.
-
-## Architecture
-
-```
-┌────────────────────────────────────────────────────────────┐
-│  mcbench (Python)                                          │
-│  ┌──────────┐  ┌───────────┐  ┌─────────┐  ┌────────────┐  │
-│  │ Config   │→ │ Server    │→ │ Runner  │→ │ Grader     │  │
-│  │ (YAML)   │  │ (Docker)  │  │ (Agent) │  │ (rule/LLM) │  │
-│  └──────────┘  └───────────┘  └─────────┘  └────────────┘  │
-└─────────────────────┬──────────────────────────────────────┘
-                      │ RCON (init) / Protocol (agent)
-                      ▼
-        ┌──────────────────────────────┐
-        │  Paper server (itzg/mc image)│
-        └──────────────────────────────┘
-                      ▲
-                      │ mineflayer protocol
-                      │
-              ┌───────────────┐
-              │  Agent (any   │   (Node.js mineflayer, Python bot,
-              │   substrate)  │    LLM-driven, scripted, …)
-              └───────────────┘
-```
-
-The harness is agent-agnostic: any process that can connect to a Minecraft server as a player can be benchmarked. The reference example is a Node.js mineflayer log-gathering agent driven over stdio.
-
-## Quick start
+## Quick Start
 
 ```bash
-# install
 pip install -e .
+(cd mcbench/recorder && npm install)
+(cd agents_examples/log_gatherer && npm install)
 
-# run a generated resource-gathering challenge with the example agent
 mcbench resource-gather \
-            --seed 42 \
-            --agent log_gatherer=agents_examples/log_gatherer
-
-# results land in results/resource_gathering/
+  --seed 42 \
+  --agent log_gatherer=agents_examples/log_gatherer \
+  --record
 ```
 
-## Task format
+Multiple miners can be evaluated in parallel by repeating `--agent`:
+
+```bash
+mcbench resource-gather \
+  --seed 42 \
+  --agent miner_a=/path/to/miner_a \
+  --agent miner_b=/path/to/miner_b \
+  --record
+```
+
+## Challenge Model
+
+The base runtime settings live in `resource_base.yaml`.
+
+The resource catalog lives in `resource_catalog.yaml`:
 
 ```yaml
-# tasks/simple/chop_oak_log.yaml
-id: chop_oak_log
-difficulty: simple
-goal: "Chop 5 oak logs and put them in your inventory."
-
-setup:
-  world: flat
-  commands:
-    - /give @p iron_axe 1
-    - /setblock ~5 ~ ~ oak_log
-    - /fill ~3 ~ ~3 ~8 ~3 ~8 oak_log
-
-timeout_seconds: 120
-
-success:
-  rules:
-    - kind: inventory_contains
-      item: oak_log
-      min_count: 5
+resources:
+  logs:
+    items: [oak_log, birch_log, spruce_log]
+    target_range: [16, 128]
+    points: 100
 ```
 
-For subjective tasks (e.g., "build a nice shelter"), set `success.llm_rubric` and the grader will call Claude with the trace.
+For each evaluation batch, the validator derives a deterministic generated
+challenge from the catalog and seed. Example:
 
-## Repository layout
-
-```
-neverplayalone_mcbench/
-├── mcbench/                  # Python package
-│   ├── cli.py                # `mcbench` CLI
-│   ├── config.py             # task YAML loader
-│   ├── server.py             # Docker lifecycle
-│   ├── rcon.py               # RCON wrapper
-│   ├── trace.py              # trace schema
-│   ├── runner.py             # orchestrate a task run
-│   ├── agents/               # agent adapters
-│   └── grader/               # rule + LLM graders
-├── docker/                   # Paper server compose file
-├── tasks/                    # task YAMLs (simple/ + hard/)
-├── agents_examples/          # reference mineflayer agents
-└── results/                  # run outputs (gitignored)
+```json
+{
+  "resource": "logs",
+  "target_count": 64,
+  "goal": "Before sunset, gather 64 logs and store it in the barrel at the spawn point."
+}
 ```
 
-## Recording (optional)
+Only resources stored in the spawn barrel are counted. Resources remaining in
+the miner inventory do not score.
 
-Pass `--record` to capture a ReplayMod-compatible visual replay. A sidecar Node
-process joins as a second account (`RecorderCam`), spectates the agent, records
-the Minecraft protocol stream, and exports it to `.mcpr`.
+Score:
 
-```bash
-mcbench resource-gather \
-            --seed 42 \
-            --agent log_gatherer=agents_examples/log_gatherer \
-            --record
+```text
+min(stored_count, target_count) / target_count * points
 ```
 
-Outputs land under `results/<run_id>/`:
+## Outputs
 
-- `packets.jsonl.gz`: gzip-compressed Minecraft protocol packet stream
-- `packets.manifest.json`: packet-capture metadata and packet counts
-- `recording.mcpr`: ReplayMod visual replay generated from the packet stream
+Batch outputs are written under `results/resource_gathering/batches/<challenge_id>/`:
+
+- `generated_challenge.json`
+- `batch_report.json`
+- `world_template/`
+- `miners/<miner>__slot<N>/score.json`
+- `miners/<miner>__slot<N>/trace.json`
+- `miners/<miner>__slot<N>/recording.mcpr` when `--record` is enabled
+
+## Recording
+
+Recording uses a sidecar Mineflayer process that joins as `RecorderCam`,
+spectates the miner, captures the Minecraft protocol stream, and exports a
+ReplayMod-compatible `.mcpr` file.
 
 To regenerate a ReplayMod file from a packet log:
 
@@ -118,20 +87,20 @@ To regenerate a ReplayMod file from a packet log:
 mcbench replay export-mcpr results/<run_id>/packets.jsonl.gz
 ```
 
-Open `recording.mcpr` with ReplayMod using the same Minecraft version as the
-recording.
+## Repository Layout
 
-### One-time setup for recording
-
-Recording only requires the packet-recorder Node dependencies:
-
-```bash
-(cd mcbench/recorder && npm install)
+```text
+mcbench/                   Python package
+  cli.py                   CLI
+  competition.py           Single-slot resource run and scoring
+  resource_batch.py        Challenge generation, world template, parallel slots
+  server.py                Docker lifecycle helpers
+  recorder.py              Recorder process wrapper
+  replay_tool.py           Packet log to ReplayMod export
+  agents/                  Agent subprocess adapter
+agents_examples/
+  log_gatherer/            Reference Mineflayer log-gathering miner
+docker/                    Paper server compose/config
+resource_base.yaml         Runtime defaults
+resource_catalog.yaml      Resource categories and target ranges
 ```
-
-If `--record` is set but the deps are missing, the runner logs a clear message
-and continues without recording — the rest of the run still proceeds and is graded.
-
-## Status
-
-Early scaffold. The harness boots a server, runs a task, and grades the trace end-to-end — but the task set and grader rules are deliberately small. Add tasks under `tasks/` and rules under `mcbench/grader/rules.py`.

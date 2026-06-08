@@ -1,8 +1,8 @@
 """Resource-gathering competition runner.
 
-This path is intentionally separate from the task benchmark runner. A resource
-competition run evaluates one agent in one isolated Minecraft world for a fixed
-wall-clock duration, then scores only resources stored in the spawn barrel.
+A resource competition run evaluates one miner in one isolated Minecraft world
+for a fixed wall-clock duration, then scores only resources stored in the spawn
+barrel.
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def run_resource_gathering_competition(
     shutil.rmtree(output, ignore_errors=True)
     output.mkdir(parents=True, exist_ok=True)
 
-    trace = Trace(task_id=cfg.id, agent_name=agent.spec.name, started_at=time.time())
+    trace = Trace(challenge_id=cfg.id, agent_name=agent.spec.name, started_at=time.time())
     setup_done = False
     timed_out = False
     death_baseline = 0

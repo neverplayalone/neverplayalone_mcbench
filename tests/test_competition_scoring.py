@@ -69,7 +69,7 @@ class CompetitionScoringTest(unittest.TestCase):
                 efficiency_min_resource_score=100,
             ),
         )
-        trace = Trace(task_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 3, "birch_log": 2}, health=20)
@@ -98,7 +98,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_scores_target_count_and_survival(self) -> None:
         cfg = _config()
-        trace = Trace(task_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 32}, health=20)
@@ -112,7 +112,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_efficiency_bonus_requires_early_done_and_resource_floor(self) -> None:
         cfg = _config()
-        trace = Trace(task_id=cfg.id, agent_name="agent", started_at=time.time() - 300)
+        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 300)
         trace.ended_at = time.time()
         trace.final_state = FinalState(inventory={"oak_log": 32}, health=20)
         trace.append(TraceEvent(kind="done", data={}))
