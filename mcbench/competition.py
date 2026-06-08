@@ -49,20 +49,17 @@ class KitItem(BaseModel):
         return value
 
 
-class ResourceMilestones(BaseModel):
+class ResourceTarget(BaseModel):
     item: str
-    milestones: list[int]
-    points: float
+    items: list[str] = Field(default_factory=list)
+    target_count: int
+    points: float = 100.0
 
-    @field_validator("milestones")
+    @field_validator("target_count")
     @classmethod
-    def milestones_must_increase(cls, value: list[int]) -> list[int]:
-        if not value:
-            raise ValueError("resource milestones cannot be empty")
-        if any(v <= 0 for v in value):
-            raise ValueError("resource milestones must be positive")
-        if value != sorted(set(value)):
-            raise ValueError("resource milestones must be strictly increasing")
+    def target_count_must_be_positive(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("resource target_count must be positive")
         return value
 
 
@@ -83,12 +80,9 @@ class ResourceCompetitionConfig(BaseModel):
     duration_seconds: int = 1200
     spawn_time: int = 0
     username: str = USERNAME
-    goal: str = (
-        "Gather as many scored resources as possible before the 20 minute timer ends. "
-        "Final scoring counts only resources in your inventory."
-    )
+    goal: str = "Gather the requested resource before sunset."
     kit: list[KitItem] = Field(default_factory=list)
-    resources: list[ResourceMilestones]
+    resources: list[ResourceTarget] = Field(default_factory=list)
     scoring: CompetitionScoringConfig = Field(default_factory=CompetitionScoringConfig)
 
     @field_validator("duration_seconds")
@@ -151,8 +145,11 @@ def run_resource_gathering_competition(
     out_dir: str | Path | None = None,
     keep_server: bool = False,
     record: RecordOptions | None = None,
+    world_template: str | Path | None = None,
 ) -> dict[str, Any]:
     slot = slot or CompetitionSlot()
+    if not cfg.resources:
+        raise RuntimeError("resource competition config must include at least one target resource")
     run_id = f"{cfg.id}__{agent.spec.name}__seed{cfg.seed}__slot{slot.slot_id}"
     output = Path(out_dir) if out_dir else COMPETITION_RESULTS_DIR / run_id
     shutil.rmtree(output, ignore_errors=True)
@@ -171,7 +168,7 @@ def run_resource_gathering_competition(
             f"[bold cyan]Resource gathering[/]: {run_id} | "
             f"slot {slot.slot_id} | ports {slot.game_port}/{slot.rcon_port}"
         )
-        _start_slot(slot, cfg)
+        _start_slot(slot, cfg, world_template=Path(world_template) if world_template else None)
         slot_started = True
         try:
             server = slot.server_config()
@@ -310,16 +307,17 @@ def score_resource_gathering(
     max_resource_score = 0.0
 
     for spec in cfg.resources:
-        count = inventory.get(spec.item, 0)
-        achieved = sum(1 for threshold in spec.milestones if count >= threshold)
-        score = spec.points * achieved / len(spec.milestones)
+        count = _resource_count(inventory, spec)
+        achieved = min(count, spec.target_count)
+        score = spec.points * achieved / spec.target_count
         max_resource_score += spec.points
         resource_score += score
         resources.append(
             {
                 "item": spec.item,
+                "items": _counted_items(spec),
                 "count": count,
-                "milestones": spec.milestones,
+                "target_count": spec.target_count,
                 "achieved": achieved,
                 "points": score,
                 "max_points": spec.points,
@@ -364,10 +362,19 @@ def score_resource_gathering(
     }
 
 
-def _start_slot(slot: CompetitionSlot, cfg: ResourceCompetitionConfig) -> None:
+def _start_slot(
+    slot: CompetitionSlot,
+    cfg: ResourceCompetitionConfig,
+    world_template: Path | None = None,
+) -> None:
     _stop_slot(slot, quiet=True)
     shutil.rmtree(slot.data_dir, ignore_errors=True)
-    slot.data_dir.mkdir(parents=True, exist_ok=True)
+    if world_template is not None:
+        if not world_template.exists():
+            raise RuntimeError(f"world template does not exist: {world_template}")
+        shutil.copytree(world_template, slot.data_dir)
+    else:
+        slot.data_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         "docker",
@@ -505,7 +512,12 @@ def _capture_final_snapshot(
     state.health = _parse_scalar(mcr.command(f"data get entity {cfg.username} Health"))
     state.food = _parse_scalar(mcr.command(f"data get entity {cfg.username} foodLevel"))
     for resource in cfg.resources:
-        state.inventory[resource.item] = _count_item(mcr, cfg.username, resource.item)
+        total = 0
+        for item in _counted_items(resource):
+            count = _count_item(mcr, cfg.username, item)
+            state.inventory[item] = count
+            total += count
+        state.inventory[resource.item] = total
     deaths = max(0, _read_score(mcr, cfg.username, "mcb_deaths") - death_baseline)
     return {
         "final_state": state,
@@ -518,6 +530,16 @@ def _count_item(mcr: MCRcon, username: str, item: str) -> int:
     raw = mcr.command(f"clear {username} minecraft:{item} 0")
     m = re.search(r"\b(\d+)\b", raw)
     return int(m.group(1)) if (m and "found" in raw.lower()) else 0
+
+
+def _counted_items(resource: ResourceTarget) -> list[str]:
+    return resource.items or [resource.item]
+
+
+def _resource_count(inventory: dict[str, int], resource: ResourceTarget) -> int:
+    if resource.item in inventory:
+        return inventory.get(resource.item, 0)
+    return sum(inventory.get(item, 0) for item in _counted_items(resource))
 
 
 def _read_score(mcr: MCRcon, username: str, objective: str) -> int:
@@ -542,9 +564,4 @@ def _parse_scalar(raw: str) -> float | None:
 
 
 def _goal_text(cfg: ResourceCompetitionConfig) -> str:
-    lines = [cfg.goal, "", "Scored resources and milestones:"]
-    for resource in cfg.resources:
-        lines.append(
-            f"- {resource.item}: {', '.join(str(m) for m in resource.milestones)}"
-        )
-    return "\n".join(lines)
+    return cfg.goal

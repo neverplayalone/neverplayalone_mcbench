@@ -206,8 +206,8 @@ def bench_cmd(
     "--config",
     "config_path",
     type=click.Path(exists=True, path_type=Path),
-    default=Path("resource_gathering.yaml"),
-    help="Resource-gathering competition config.",
+    required=True,
+    help="Concrete resource challenge config. For generated validator batches, use resource-batch.",
 )
 @click.option(
     "--agent",
@@ -266,6 +266,85 @@ def resource_gather_cmd(
         )
     except (ValueError, RuntimeError) as e:
         raise click.ClickException(str(e)) from e
+
+
+@main.command("resource-batch")
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("resource_base.yaml"),
+    help="Base resource-gathering config for server, kit, and duration.",
+)
+@click.option(
+    "--catalog",
+    "catalog_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("resource_catalog.yaml"),
+    help="Resource catalog used to generate the shared challenge.",
+)
+@click.option(
+    "--agent",
+    "agent_assignments",
+    multiple=True,
+    required=True,
+    help="Miner assignment as NAME=PATH or PATH. Repeat once per miner.",
+)
+@click.option("--seed", type=int, required=True, help="Deterministic challenge seed.")
+@click.option("--challenge-id", default=None, help="Optional explicit challenge id.")
+@click.option("--base-game-port", type=int, default=25665)
+@click.option("--base-rcon-port", type=int, default=25675)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
+@click.option("--record/--no-record", default=False, help="Record every miner slot.")
+def resource_batch_cmd(
+    config_path: Path,
+    catalog_path: Path,
+    agent_assignments: tuple[str, ...],
+    seed: int,
+    challenge_id: str | None,
+    base_game_port: int,
+    base_rcon_port: int,
+    out_dir: Path | None,
+    record: bool,
+) -> None:
+    """Run one generated resource challenge across multiple miner slots."""
+    from .competition import load_resource_competition_config
+    from .resource_batch import (
+        create_evaluation_batch,
+        load_resource_catalog,
+        parse_agent_assignment,
+        run_evaluation_batch,
+    )
+
+    try:
+        agents = [parse_agent_assignment(raw) for raw in agent_assignments]
+        cfg = load_resource_competition_config(config_path)
+        catalog = load_resource_catalog(catalog_path)
+        batch = create_evaluation_batch(
+            catalog=catalog,
+            base_cfg=cfg,
+            agents=agents,
+            seed=seed,
+            challenge_id=challenge_id,
+            output_dir=out_dir,
+            base_game_port=base_game_port,
+            base_rcon_port=base_rcon_port,
+        )
+        report = run_evaluation_batch(batch, record=record)
+    except (ValueError, RuntimeError) as e:
+        raise click.ClickException(str(e)) from e
+
+    console.log(f"[bold green]Batch complete:[/] {batch.output_dir}")
+    for result in report["results"]:
+        if "error" in result:
+            console.log(
+                f"[red]{result['miner']}[/] slot {result['slot']} failed: {result['error']}"
+            )
+        else:
+            console.log(
+                f"{result['miner']} slot {result['slot']}: "
+                f"{result['score']:.1f} / {result['max_score']:.1f}"
+            )
 
 
 if __name__ == "__main__":
