@@ -156,7 +156,10 @@ def generate_challenge(
     world_seed = rng.randint(-(2**31), 2**31 - 1)
     display_name = entry.display_name or resource.replace("_", " ")
     challenge_id = challenge_id or f"resource_{seed}_{resource}_{target_count}"
-    goal = f"Before sunset, gather {target_count} {display_name}."
+    goal = (
+        f"Before sunset, gather {target_count} {display_name} "
+        "and store it in the barrel at the spawn point."
+    )
     return GeneratedChallenge(
         challenge_id=challenge_id,
         seed=seed,

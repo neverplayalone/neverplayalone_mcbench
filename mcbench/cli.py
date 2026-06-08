@@ -206,73 +206,6 @@ def bench_cmd(
     "--config",
     "config_path",
     type=click.Path(exists=True, path_type=Path),
-    required=True,
-    help="Concrete resource challenge config. For generated validator batches, use resource-batch.",
-)
-@click.option(
-    "--agent",
-    "agent_path",
-    required=True,
-    type=click.Path(exists=True, path_type=Path),
-)
-@click.option("--agent-name", default=None, help="Display name for the agent")
-@click.option("--slot", "slot_id", type=int, default=0, help="Evaluation slot id.")
-@click.option("--base-game-port", type=int, default=25565)
-@click.option("--base-rcon-port", type=int, default=25575)
-@click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
-@click.option("--record/--no-record", default=False, help="Record a ReplayMod-compatible packet replay")
-@click.option(
-    "--keep-server/--stop-server",
-    default=False,
-    help="Keep the slot container running after the run for debugging.",
-)
-def resource_gather_cmd(
-    config_path: Path,
-    agent_path: Path,
-    agent_name: str | None,
-    slot_id: int,
-    base_game_port: int,
-    base_rcon_port: int,
-    out_dir: Path | None,
-    record: bool,
-    keep_server: bool,
-) -> None:
-    """Run one resource-gathering competition evaluation slot."""
-    from .competition import (
-        CompetitionSlot,
-        load_resource_competition_config,
-        run_resource_gathering_competition,
-    )
-
-    cfg = load_resource_competition_config(config_path)
-    spec = AgentSpec(name=agent_name or agent_path.name, path=str(agent_path))
-    agent = SubprocessAgent(spec)
-    slot = CompetitionSlot(
-        slot_id=slot_id,
-        base_game_port=base_game_port,
-        base_rcon_port=base_rcon_port,
-    )
-    rec_opts: RecordOptions | None = None
-    if record:
-        rec_opts = RecordOptions(target_username=cfg.username)
-    try:
-        run_resource_gathering_competition(
-            cfg,
-            agent,
-            slot=slot,
-            out_dir=out_dir,
-            keep_server=keep_server,
-            record=rec_opts,
-        )
-    except (ValueError, RuntimeError) as e:
-        raise click.ClickException(str(e)) from e
-
-
-@main.command("resource-batch")
-@click.option(
-    "--config",
-    "config_path",
-    type=click.Path(exists=True, path_type=Path),
     default=Path("resource_base.yaml"),
     help="Base resource-gathering config for server, kit, and duration.",
 )
@@ -296,7 +229,7 @@ def resource_gather_cmd(
 @click.option("--base-rcon-port", type=int, default=25675)
 @click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
 @click.option("--record/--no-record", default=False, help="Record every miner slot.")
-def resource_batch_cmd(
+def resource_gather_cmd(
     config_path: Path,
     catalog_path: Path,
     agent_assignments: tuple[str, ...],
@@ -307,7 +240,7 @@ def resource_batch_cmd(
     out_dir: Path | None,
     record: bool,
 ) -> None:
-    """Run one generated resource challenge across multiple miner slots."""
+    """Run one generated resource-gathering challenge across miner slots."""
     from .competition import load_resource_competition_config
     from .resource_batch import (
         create_evaluation_batch,

@@ -2,12 +2,13 @@
 
 This path is intentionally separate from the task benchmark runner. A resource
 competition run evaluates one agent in one isolated Minecraft world for a fixed
-wall-clock duration, then scores only server-authoritative final inventory.
+wall-clock duration, then scores only resources stored in the spawn barrel.
 """
 
 from __future__ import annotations
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -33,6 +34,8 @@ console = Console()
 
 USERNAME = "BenchmarkBot"
 COMPETITION_RESULTS_DIR = REPO_ROOT / "results" / "resource_gathering"
+STORAGE_BLOCK = "barrel"
+STORAGE_OFFSET = (1, 0, 0)
 
 
 class KitItem(BaseModel):
@@ -159,6 +162,7 @@ def run_resource_gathering_competition(
     setup_done = False
     timed_out = False
     death_baseline = 0
+    storage_pos: tuple[int, int, int] | None = None
     slot_started = False
     recorder: Recorder | None = None
     final_snapshot: dict[str, Any] | None = None
@@ -221,7 +225,7 @@ def run_resource_gathering_competition(
                     with rcon_session(
                         server.host, server.rcon_port, server.rcon_password
                     ) as mcr:
-                        death_baseline = _setup_competitor(mcr, cfg)
+                        death_baseline, storage_pos = _setup_competitor(mcr, cfg)
                         if recorder is not None and record is not None:
                             mcr.command(f"tp {record.recorder_username} {cfg.username}")
                             mcr.command(f"spectate {cfg.username} {record.recorder_username}")
@@ -236,7 +240,7 @@ def run_resource_gathering_competition(
                 console.log("Capturing competition final state...")
                 try:
                     with rcon_session(slot.host, slot.rcon_port, slot.rcon_password) as mcr:
-                        final_snapshot = _capture_final_snapshot(mcr, cfg, death_baseline)
+                        final_snapshot = _capture_final_snapshot(mcr, cfg, death_baseline, storage_pos)
                         trace.final_state = final_snapshot["final_state"]
                 except Exception as e:
                     final_snapshot = {
@@ -272,7 +276,7 @@ def run_resource_gathering_competition(
             console.log("Capturing competition final state...")
             try:
                 with rcon_session(slot.host, slot.rcon_port, slot.rcon_password) as mcr:
-                    final_snapshot = _capture_final_snapshot(mcr, cfg, death_baseline)
+                    final_snapshot = _capture_final_snapshot(mcr, cfg, death_baseline, storage_pos)
                     trace.final_state = final_snapshot["final_state"]
             except Exception as e:
                 final_snapshot = {"error": f"snapshot failed: {e}", "deaths": 0, "alive": False}
@@ -359,6 +363,7 @@ def score_resource_gathering(
         "resources": resources,
         "final_position": trace.final_state.position,
         "final_health": trace.final_state.health,
+        "storage": snapshot.get("storage"),
     }
 
 
@@ -461,19 +466,34 @@ def _configure_world_start(server: ServerConfig, cfg: ResourceCompetitionConfig)
         mcr.command(f"time set {cfg.spawn_time}")
 
 
-def _setup_competitor(mcr: MCRcon, cfg: ResourceCompetitionConfig) -> int:
+def _setup_competitor(
+    mcr: MCRcon,
+    cfg: ResourceCompetitionConfig,
+) -> tuple[int, tuple[int, int, int]]:
     mcr.command(f"op {cfg.username}")
     mcr.command(f"clear {cfg.username}")
     mcr.command("kill @e[type=item]")
     mcr.command("scoreboard objectives remove mcb_deaths")
     mcr.command("scoreboard objectives add mcb_deaths minecraft.custom:minecraft.deaths")
     death_baseline = _read_score(mcr, cfg.username, "mcb_deaths")
+    storage_pos = _prepare_spawn_storage(mcr, cfg.username)
     for kit in cfg.kit:
         _give_kit_item(mcr, cfg.username, kit)
     mcr.command(f"gamemode survival {cfg.username}")
     mcr.command(f"effect give {cfg.username} minecraft:saturation 3 10 true")
     mcr.command(f"deop {cfg.username}")
-    return death_baseline
+    return death_baseline, storage_pos
+
+
+def _prepare_spawn_storage(mcr: MCRcon, username: str) -> tuple[int, int, int]:
+    pos = _parse_pos(mcr.command(f"data get entity {username} Pos"))
+    if pos is None:
+        raise RuntimeError(f"could not read spawn position for {username}")
+    x = math.floor(pos[0]) + STORAGE_OFFSET[0]
+    y = math.floor(pos[1]) + STORAGE_OFFSET[1]
+    z = math.floor(pos[2]) + STORAGE_OFFSET[2]
+    mcr.command(f"setblock {x} {y} {z} minecraft:{STORAGE_BLOCK}[facing=up] replace")
+    return x, y, z
 
 
 def _give_kit_item(mcr: MCRcon, username: str, kit: KitItem) -> None:
@@ -506,6 +526,7 @@ def _capture_final_snapshot(
     mcr: MCRcon,
     cfg: ResourceCompetitionConfig,
     death_baseline: int,
+    storage_pos: tuple[int, int, int] | None,
 ) -> dict[str, Any]:
     state = FinalState()
     state.position = _parse_pos(mcr.command(f"data get entity {cfg.username} Pos"))
@@ -514,7 +535,11 @@ def _capture_final_snapshot(
     for resource in cfg.resources:
         total = 0
         for item in _counted_items(resource):
-            count = _count_item(mcr, cfg.username, item)
+            count = (
+                _count_stored_item(mcr, storage_pos, item)
+                if storage_pos is not None
+                else 0
+            )
             state.inventory[item] = count
             total += count
         state.inventory[resource.item] = total
@@ -523,6 +548,10 @@ def _capture_final_snapshot(
         "final_state": state,
         "deaths": deaths,
         "alive": state.health is not None and state.health > 0,
+        "storage": {
+            "block": STORAGE_BLOCK,
+            "position": storage_pos,
+        },
     }
 
 
@@ -530,6 +559,30 @@ def _count_item(mcr: MCRcon, username: str, item: str) -> int:
     raw = mcr.command(f"clear {username} minecraft:{item} 0")
     m = re.search(r"\b(\d+)\b", raw)
     return int(m.group(1)) if (m and "found" in raw.lower()) else 0
+
+
+def _count_stored_item(
+    mcr: MCRcon,
+    storage_pos: tuple[int, int, int] | None,
+    item: str,
+) -> int:
+    if storage_pos is None:
+        return 0
+    x, y, z = storage_pos
+    raw = mcr.command(f'data get block {x} {y} {z} Items[{{id:"minecraft:{item}"}}]')
+    return _count_item_stacks(raw, item)
+
+
+def _count_item_stacks(raw: str, item: str) -> int:
+    item_id = f"minecraft:{item}"
+    total = 0
+    for entry in re.finditer(r"\{[^{}]*\}", raw):
+        text = entry.group(0)
+        if re.search(rf'\bid:\s*"{re.escape(item_id)}"', text) is None:
+            continue
+        count_match = re.search(r"\b(?:count|Count):\s*(\d+)", text, re.IGNORECASE)
+        total += int(count_match.group(1)) if count_match else 1
+    return total
 
 
 def _counted_items(resource: ResourceTarget) -> list[str]:

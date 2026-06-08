@@ -8,6 +8,7 @@ from mcbench.competition import (
     KitItem,
     ResourceCompetitionConfig,
     ResourceTarget,
+    _count_item_stacks,
     _kit_item_stack,
     score_resource_gathering,
 )
@@ -83,6 +84,17 @@ class CompetitionScoringTest(unittest.TestCase):
 
         self.assertEqual(report["resource_score"], 100)
         self.assertEqual(report["resources"][0]["count"], 30)
+
+    def test_count_item_stacks_parses_spawn_storage_contents(self) -> None:
+        raw = (
+            'Block data: [{Slot: 0b, count: 64, id: "minecraft:oak_log"}, '
+            '{Slot: 1b, count: 12, id: "minecraft:birch_log"}, '
+            '{Slot: 2b, count: 3, id: "minecraft:oak_log"}]'
+        )
+
+        self.assertEqual(_count_item_stacks(raw, "oak_log"), 67)
+        self.assertEqual(_count_item_stacks(raw, "birch_log"), 12)
+        self.assertEqual(_count_item_stacks(raw, "coal"), 0)
 
     def test_scores_target_count_and_survival(self) -> None:
         cfg = _config()
