@@ -1,0 +1,41 @@
+id: resource_gathering_v1
+minecraft_version: "1.21.11"
+world_type: normal
+generate_structures: true
+difficulty: normal
+memory: 2G
+duration_seconds: 1200
+spawn_time: 0
+username: BenchmarkBot
+
+kit:
+  - item: netherite_pickaxe
+    count: 1
+    enchantments:
+      - efficiency:5
+      - unbreaking:3
+      - fortune:3
+  - item: netherite_axe
+    count: 1
+    enchantments:
+      - efficiency:5
+      - unbreaking:3
+  - item: netherite_shovel
+    count: 1
+    enchantments:
+      - efficiency:5
+      - unbreaking:3
+  - item: cooked_beef
+    count: 64
+  - item: torch
+    count: 64
+  - item: water_bucket
+    count: 1
+  - item: shield
+    count: 1
+    slot: weapon.offhand
+
+scoring:
+  survival_points: 50
+  efficiency_points: 50
+  efficiency_min_resource_score: 100
