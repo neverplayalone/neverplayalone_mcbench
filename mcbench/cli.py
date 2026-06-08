@@ -8,11 +8,7 @@ import click
 from rich.console import Console
 
 from . import server as server_mod
-from .agents import AgentSpec, SubprocessAgent
-from .config import load_task
-from .recorder import RecordOptions
 from .replay_tool import export_mcpr
-from .runner import run_task
 
 console = Console()
 
@@ -79,126 +75,83 @@ def replay_export_mcpr(packet_log: Path, output: Path | None) -> None:
     console.log(f"[green]ReplayMod file written:[/] {mcpr}")
 
 
-@main.command("run")
-@click.option("--task", "task_path", required=True, type=click.Path(exists=True, path_type=Path))
-@click.option("--agent", "agent_path", required=True, type=click.Path(exists=True, path_type=Path))
-@click.option("--agent-name", default=None, help="Display name for the agent")
-@click.option("--record/--no-record", default=False, help="Record a ReplayMod-compatible packet replay")
-@click.option(
-    "--reset/--no-reset",
-    default=True,
-    help="Clean the spawn area before the run (prevents terrain/entities leaking across runs). "
-    "Use --no-reset to reuse the current world as-is.",
-)
-def run_cmd(
-    task_path: Path,
-    agent_path: Path,
-    agent_name: str | None,
-    record: bool,
-    reset: bool,
-) -> None:
-    """Run AGENT against TASK and grade the result."""
-    task = load_task(task_path)
-    spec = AgentSpec(name=agent_name or agent_path.name, path=str(agent_path))
-    agent = SubprocessAgent(spec)
-    rec_opts: RecordOptions | None = None
-    if record:
-        rec_opts = RecordOptions(
-            target_username="BenchmarkBot",
-        )
-    try:
-        run_task(task, agent, record=rec_opts, reset=reset)
-    except RuntimeError as e:
-        raise click.ClickException(str(e)) from e
-
-
-@main.command("taskgen")
-@click.option("--style", default=None, help="Style id to generate (omit with --list to see all)")
-@click.option("--list", "list_styles", is_flag=True, help="List available styles and exit")
-@click.option("--seed", type=int, default=0, help="Base seed (instance i uses seed+i)")
-@click.option("--n", type=int, default=1, help="Number of seeded instances to generate")
-@click.option(
-    "--difficulty", type=click.Choice(["simple", "hard"]), default="simple"
-)
-@click.option(
-    "--out",
-    type=click.Path(path_type=Path),
-    default=Path("tasks/generated"),
-    help="Output directory (a <difficulty>/ subfolder is created)",
-)
-def taskgen_cmd(
-    style: str | None,
-    list_styles: bool,
-    seed: int,
-    n: int,
-    difficulty: str,
-    out: Path,
-) -> None:
-    """Generate seeded task YAMLs from a parameterized style."""
-    from .taskgen import STYLES, generate, write_task
-
-    if list_styles or not style:
-        for sid, spec in sorted(STYLES.items()):
-            console.print(f"  [bold]{sid}[/]  ({spec.category})")
-        if not style:
-            console.print("\nPass --style <id> to generate.")
-        return
-    if style not in STYLES:
-        raise click.ClickException(f"unknown style {style!r}; run with --list")
-    for i in range(n):
-        try:
-            cfg = generate(style, seed + i, difficulty)
-        except ValueError as e:  # bounds invariant violated
-            raise click.ClickException(f"generation rejected: {e}") from e
-        path = write_task(cfg, out / difficulty)
-        console.log(f"wrote {path}  — {cfg.goal}")
-
-
-@main.command("bench")
+@main.command("resource-gather")
 @click.option(
     "--config",
     "config_path",
-    type=click.Path(path_type=Path),
-    default=Path("bench.yaml"),
-    help="Benchmark suite config (default: ./bench.yaml)",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("resource_base.yaml"),
+    help="Base resource-gathering config for server, kit, and duration.",
+)
+@click.option(
+    "--catalog",
+    "catalog_path",
+    type=click.Path(exists=True, path_type=Path),
+    default=Path("resource_catalog.yaml"),
+    help="Resource catalog used to generate the shared challenge.",
 )
 @click.option(
     "--agent",
-    "agent_override",
-    type=click.Path(exists=True, path_type=Path),
-    default=None,
-    help="Override the agent in the config (the field you swap most often)",
+    "agent_assignments",
+    multiple=True,
+    required=True,
+    help="Miner assignment as NAME=PATH or PATH. Repeat once per miner.",
 )
-@click.option("--out", "out_override", type=click.Path(path_type=Path), default=None)
-@click.option(
-    "--valid",
-    "valid_mode",
-    is_flag=True,
-    default=False,
-    help="Validation mode: solve each task with the built-in oracle (records each) to "
-    "confirm the generated tasks are solvable. Ignores --agent.",
-)
-def bench_cmd(
+@click.option("--seed", type=int, required=True, help="Deterministic challenge seed.")
+@click.option("--challenge-id", default=None, help="Optional explicit challenge id.")
+@click.option("--base-game-port", type=int, default=25665)
+@click.option("--base-rcon-port", type=int, default=25675)
+@click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
+@click.option("--record/--no-record", default=False, help="Record every miner slot.")
+def resource_gather_cmd(
     config_path: Path,
-    agent_override: Path | None,
-    out_override: Path | None,
-    valid_mode: bool,
+    catalog_path: Path,
+    agent_assignments: tuple[str, ...],
+    seed: int,
+    challenge_id: str | None,
+    base_game_port: int,
+    base_rcon_port: int,
+    out_dir: Path | None,
+    record: bool,
 ) -> None:
-    """Run a config-defined benchmark suite and print an aggregate report."""
-    from .bench import load_bench_config, run_bench
+    """Run one generated resource-gathering challenge across miner slots."""
+    from .competition import load_resource_competition_config
+    from .resource_batch import (
+        create_evaluation_batch,
+        load_resource_catalog,
+        parse_agent_assignment,
+        run_evaluation_batch,
+    )
 
-    if not config_path.exists():
-        raise click.ClickException(f"config not found: {config_path} (pass --config)")
-    cfg = load_bench_config(config_path)
     try:
-        run_bench(
-            cfg,
-            agent_path=str(agent_override) if agent_override else None,
-            out_dir=out_override,
-            valid_mode=valid_mode,
+        agents = [parse_agent_assignment(raw) for raw in agent_assignments]
+        cfg = load_resource_competition_config(config_path)
+        catalog = load_resource_catalog(catalog_path)
+        batch = create_evaluation_batch(
+            catalog=catalog,
+            base_cfg=cfg,
+            agents=agents,
+            seed=seed,
+            challenge_id=challenge_id,
+            output_dir=out_dir,
+            base_game_port=base_game_port,
+            base_rcon_port=base_rcon_port,
         )
+        report = run_evaluation_batch(batch, record=record)
     except (ValueError, RuntimeError) as e:
         raise click.ClickException(str(e)) from e
+
+    console.log(f"[bold green]Batch complete:[/] {batch.output_dir}")
+    for result in report["results"]:
+        if "error" in result:
+            console.log(
+                f"[red]{result['miner']}[/] slot {result['slot']} failed: {result['error']}"
+            )
+        else:
+            console.log(
+                f"{result['miner']} slot {result['slot']}: "
+                f"{result['score']:.1f} / {result['max_score']:.1f}"
+            )
 
 
 if __name__ == "__main__":
