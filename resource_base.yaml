@@ -2,7 +2,7 @@ id: resource_gathering_v1
 minecraft_version: "1.21.11"
 world_type: normal
 generate_structures: true
-difficulty: normal
+difficulty: peaceful
 memory: 2G
 duration_seconds: 120
 spawn_time: 0

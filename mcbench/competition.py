@@ -121,7 +121,7 @@ class ResourceCompetitionConfig(BaseModel):
     minecraft_version: str = "1.21.11"
     world_type: str = "normal"
     generate_structures: bool = True
-    difficulty: Literal["peaceful", "easy", "normal", "hard"] = "normal"
+    difficulty: Literal["peaceful", "easy", "normal", "hard"] = "peaceful"
     memory: str = "2G"
     duration_seconds: int = 1200
     spawn_time: int = 0
@@ -521,6 +521,10 @@ def _configure_world_start(server: ServerConfig, cfg: ResourceCompetitionConfig)
         mcr.command("gamerule keep_inventory false")
         mcr.command("gamerule advance_time true")
         mcr.command("gamerule advance_weather true")
+        # Determinism across slots: mobs spawn from per-container RNG that a shared
+        # world template cannot pin down. With peaceful difficulty plus no mob
+        # spawning, every slot sees the same empty world.
+        mcr.command("gamerule doMobSpawning false")
         mcr.command(f"difficulty {cfg.difficulty}")
         mcr.command(f"time set {cfg.spawn_time}")
 

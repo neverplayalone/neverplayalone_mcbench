@@ -74,6 +74,10 @@ class CompetitionScoringTest(unittest.TestCase):
         self.assertEqual(cfg.minecraft_version, "1.21.11")
         self.assertEqual(cfg.world_type, "normal")
 
+    def test_difficulty_defaults_to_peaceful(self) -> None:
+        # Peaceful + no mob spawning keeps every slot's world identical.
+        self.assertEqual(ResourceCompetitionConfig().difficulty, "peaceful")
+
     def test_kit_item_stack_defaults_to_plain_item_for_agent_compatibility(self) -> None:
         item = _kit_item_stack(KitItem(item="netherite_pickaxe"))
 
