@@ -4,7 +4,7 @@ world_type: normal
 generate_structures: true
 difficulty: normal
 memory: 2G
-duration_seconds: 1200
+duration_seconds: 120
 spawn_time: 0
 username: BenchmarkBot
 
@@ -36,6 +36,14 @@ kit:
     slot: weapon.offhand
 
 scoring:
-  survival_points: 50
-  efficiency_points: 50
-  efficiency_min_resource_score: 100
+  # Final score = resource_score * distance_multiplier, by distance from spawn at
+  # the end. Each [max_distance, multiplier] applies at or below that distance;
+  # beyond the last band the multiplier is distance_floor_mult.
+  # Time-to-finish is not scored; it only breaks ties between equal scores.
+  distance_bands:
+    - [20, 1.0]
+    - [50, 0.9]
+    - [80, 0.8]
+    - [110, 0.7]
+    - [140, 0.6]
+  distance_floor_mult: 0.5
