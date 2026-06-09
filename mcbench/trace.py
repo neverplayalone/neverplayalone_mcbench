@@ -38,6 +38,10 @@ class Trace(BaseModel):
     challenge_id: str
     agent_name: str
     started_at: float
+    # When the agent first reported `ready` (spawned in-world). The agent-active
+    # window — used for time/efficiency scoring — is agent_ready_at -> ended_at,
+    # which excludes container boot and world load. None if the agent never spawned.
+    agent_ready_at: float | None = None
     ended_at: float | None = None
     timed_out: bool = False
     events: list[TraceEvent] = Field(default_factory=list)
