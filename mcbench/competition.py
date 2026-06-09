@@ -91,9 +91,28 @@ class ResourceTarget(BaseModel):
 
 
 class CompetitionScoringConfig(BaseModel):
-    survival_points: float = 50.0
-    efficiency_points: float = 50.0
-    efficiency_min_resource_score: float = 100.0
+    # Final score = resource_score * distance_multiplier. distance_bands maps an
+    # upper distance bound (blocks from spawn) to the multiplier applied at or
+    # below it, evaluated low-to-high; beyond the last band the multiplier is
+    # distance_floor_mult. Time-to-finish is not scored; it only breaks ties
+    # between equal scores (see `time_efficiency` in the report).
+    distance_bands: list[tuple[float, float]] = Field(
+        default_factory=lambda: [
+            (20.0, 1.0),
+            (50.0, 0.9),
+            (80.0, 0.8),
+            (110.0, 0.7),
+            (140.0, 0.6),
+        ]
+    )
+    distance_floor_mult: float = 0.5
+
+    @field_validator("distance_bands")
+    @classmethod
+    def bands_sorted_ascending(
+        cls, value: list[tuple[float, float]]
+    ) -> list[tuple[float, float]]:
+        return sorted(value, key=lambda band: band[0])
 
 
 class ResourceCompetitionConfig(BaseModel):
@@ -102,7 +121,7 @@ class ResourceCompetitionConfig(BaseModel):
     minecraft_version: str = "1.21.11"
     world_type: str = "normal"
     generate_structures: bool = True
-    difficulty: Literal["peaceful", "easy", "normal", "hard"] = "normal"
+    difficulty: Literal["peaceful", "easy", "normal", "hard"] = "peaceful"
     memory: str = "2G"
     duration_seconds: int = 1200
     spawn_time: int = 0
@@ -245,6 +264,7 @@ def run_resource_gathering_competition(
                 if event.kind == "info" and event.data.get("msg") == "timeout":
                     timed_out = True
                 if not setup_done and event.kind == "ready":
+                    trace.agent_ready_at = time.time()
                     console.log("Agent spawned; applying competition kit and timer setup...")
                     with rcon_session(
                         server.host, server.rcon_port, server.rcon_password
@@ -311,6 +331,11 @@ def run_resource_gathering_competition(
         (output / "score.json").write_text(json.dumps(report, indent=2))
         (output / "config.json").write_text(cfg.model_dump_json(indent=2))
 
+        if not setup_done:
+            console.log(
+                "[yellow]Agent never reported `ready`[/]: no kit/spawn setup ran. "
+                "Score reflects a failed agent, not a poor strategy."
+            )
         console.log(
             f"[bold green]Score[/]: {report['score']:.1f} / {report['max_score']:.1f}"
         )
@@ -333,11 +358,12 @@ def score_resource_gathering(
     resources: list[dict[str, Any]] = []
     resource_score = 0.0
     max_resource_score = 0.0
-    within_return_radius = bool(snapshot.get("within_return_radius", True))
 
+    # Resources count wherever they were gathered; returning near spawn is rewarded
+    # separately by the graded distance component, not as an all-or-nothing gate.
     for spec in cfg.resources:
         count = _resource_count(inventory, spec)
-        achieved = min(count, spec.target_count) if within_return_radius else 0
+        achieved = min(count, spec.target_count)
         score = spec.points * achieved / spec.target_count
         max_resource_score += spec.points
         resource_score += score
@@ -355,32 +381,49 @@ def score_resource_gathering(
 
     deaths = int(snapshot.get("deaths", 0) or 0)
     alive = bool(snapshot.get("alive", False))
-    survival_score = 0.0
-    if alive and deaths == 0:
-        survival_score = cfg.scoring.survival_points
-    elif resource_score > 0 and deaths > 0:
-        survival_score = cfg.scoring.survival_points / 2
 
-    elapsed = max(0.0, (trace.ended_at or time.time()) - trace.started_at)
-    efficiency_score = 0.0
-    finished_early = not trace.timed_out and any(e.kind == "done" for e in trace.events)
-    if finished_early and resource_score >= cfg.scoring.efficiency_min_resource_score:
-        remaining_ratio = max(0.0, (cfg.duration_seconds - elapsed) / cfg.duration_seconds)
-        efficiency_score = cfg.scoring.efficiency_points * remaining_ratio
-
-    max_score = (
-        max_resource_score + cfg.scoring.survival_points + cfg.scoring.efficiency_points
+    # Distance multiplier scales the whole resource score: full credit within
+    # distance_radius of spawn, decaying linearly to distance_floor_mult. Because
+    # the multiplier is floored (never 0), resources always count for something,
+    # while returning home is still rewarded.
+    distance = snapshot.get("distance_from_spawn")
+    distance_multiplier = _distance_multiplier(
+        distance,
+        cfg.scoring.distance_bands,
+        cfg.scoring.distance_floor_mult,
     )
-    total = resource_score + survival_score + efficiency_score
+    total = resource_score * distance_multiplier
+    max_score = max_resource_score
+
+    # Time efficiency is NOT part of the score — it is only a tie-breaker between
+    # miners that finish with the same score. Measured over the agent-active window
+    # (spawn -> end) so boot/world-load never count against the agent. Only an agent
+    # that actually reported `done` earns it; a crash or timeout sits at 0 so
+    # "finishing fast" by dying can't win a tie.
+    play_start = trace.agent_ready_at or trace.started_at
+    elapsed = max(0.0, (trace.ended_at or time.time()) - play_start)
+    finished_early = not trace.timed_out and any(e.kind == "done" for e in trace.events)
+    time_efficiency = (
+        max(0.0, (cfg.duration_seconds - elapsed) / cfg.duration_seconds)
+        if finished_early
+        else 0.0
+    )
+
+    # An agent that never reported `ready` never had its kit/spawn setup applied,
+    # so a score of 0 means a broken agent, not a poor strategy. agent_ready_at is
+    # stamped on exactly that event, so it doubles as the spawned flag.
+    spawned = trace.agent_ready_at is not None
     return {
         "competition_id": cfg.id,
         "agent": trace.agent_name,
         "seed": cfg.seed,
         "score": total,
         "max_score": max_score,
+        "spawned": spawned,
+        "status": "ok" if spawned else "agent_never_spawned",
         "resource_score": resource_score,
-        "survival_score": survival_score,
-        "efficiency_score": efficiency_score,
+        "distance_multiplier": distance_multiplier,
+        "time_efficiency": time_efficiency,
         "elapsed_seconds": elapsed,
         "timed_out": trace.timed_out,
         "alive": alive,
@@ -389,9 +432,8 @@ def score_resource_gathering(
         "final_position": trace.final_state.position,
         "final_health": trace.final_state.health,
         "spawn": snapshot.get("spawn"),
-        "distance_from_spawn": snapshot.get("distance_from_spawn"),
-        "return_radius": snapshot.get("return_radius", RETURN_RADIUS_BLOCKS),
-        "within_return_radius": within_return_radius,
+        "distance_from_spawn": distance,
+        "distance_bands": [list(band) for band in cfg.scoring.distance_bands],
     }
 
 
@@ -490,6 +532,10 @@ def _configure_world_start(server: ServerConfig, cfg: ResourceCompetitionConfig)
         mcr.command("gamerule keep_inventory false")
         mcr.command("gamerule advance_time true")
         mcr.command("gamerule advance_weather true")
+        # Determinism across slots: mobs spawn from per-container RNG that a shared
+        # world template cannot pin down. With peaceful difficulty plus no mob
+        # spawning, every slot sees the same empty world.
+        mcr.command("gamerule doMobSpawning false")
         mcr.command(f"difficulty {cfg.difficulty}")
         mcr.command(f"time set {cfg.spawn_time}")
 
@@ -662,11 +708,6 @@ def _capture_final_snapshot(
             "position": spawn_pos,
         },
         "distance_from_spawn": distance_from_spawn,
-        "return_radius": RETURN_RADIUS_BLOCKS,
-        "within_return_radius": (
-            distance_from_spawn is not None
-            and distance_from_spawn <= RETURN_RADIUS_BLOCKS
-        ),
     }
 
 
@@ -674,6 +715,26 @@ def _count_item(mcr: MCRcon, username: str, item: str) -> int:
     raw = mcr.command(f"clear {username} minecraft:{item} 0")
     m = re.search(r"\b(\d+)\b", raw)
     return int(m.group(1)) if (m and "found" in raw.lower()) else 0
+
+
+def _distance_multiplier(
+    distance: float | None,
+    bands: list[tuple[float, float]],
+    floor: float,
+) -> float:
+    """Multiplier applied to the resource score for ending near spawn.
+
+    ``bands`` is a low-to-high list of (upper_distance, multiplier); the first band
+    whose bound the distance falls within wins. Beyond the last band the multiplier
+    is ``floor``. An unknown distance (snapshot failed) is treated as "did not
+    verifiably return" -> ``floor``.
+    """
+    if distance is None:
+        return floor
+    for upper, multiplier in bands:
+        if distance <= upper:
+            return multiplier
+    return floor
 
 
 def _horizontal_distance_from_spawn(
