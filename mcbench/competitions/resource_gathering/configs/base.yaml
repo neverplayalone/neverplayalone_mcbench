@@ -23,8 +23,6 @@ kit:
     count: 64
   - item: water_bucket
     count: 1
-  - item: shield
-    count: 1
     slot: weapon.offhand
 
 scoring:

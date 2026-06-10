@@ -1,10 +1,14 @@
-"""Pydantic models for catalog entries and the generated challenge."""
+"""Catalog entries, the generated challenge, and deterministic challenge generation."""
 
 from __future__ import annotations
 
-from pydantic import BaseModel, field_validator
+import random
 
-from .competition import ResourceCompetitionConfig, ResourceTarget
+from pydantic import BaseModel, Field, field_validator
+
+from ...core.competition import RunConfig
+from .config import ResourceCompetitionConfig, ResourceTarget
+
 
 class ResourceCatalogEntry(BaseModel):
     """One logical resource that can be selected for a challenge."""
@@ -66,9 +70,7 @@ class GeneratedChallenge(BaseModel):
     spawn_time: int
     biome: str | None = None
 
-    def to_competition_config(
-        self, base_cfg: ResourceCompetitionConfig
-    ) -> ResourceCompetitionConfig:
+    def to_run_config(self, base_cfg: ResourceCompetitionConfig) -> ResourceCompetitionConfig:
         data = base_cfg.model_dump()
         data.update(
             {
@@ -95,3 +97,37 @@ class GeneratedChallenge(BaseModel):
         return ResourceCompetitionConfig.model_validate(data)
 
 
+def generate_challenge(
+    catalog: ResourceCatalog,
+    base_cfg: RunConfig,
+    seed: int,
+    challenge_id: str | None = None,
+) -> GeneratedChallenge:
+    rng = random.Random(seed)
+    resource = rng.choice(sorted(catalog.resources))
+    entry = catalog.resources[resource]
+    target_count = rng.randint(*entry.target_range)
+    world_seed = rng.randint(-(2**31), 2**31 - 1)
+    display_name = entry.display_name or resource.replace("_", " ")
+    challenge_id = challenge_id or f"resource_{seed}_{resource}_{target_count}"
+    goal = (
+        f"Before sunset, gather {target_count} {display_name}. "
+        "Keep the items in your inventory and finish within 20 blocks of spawn."
+    )
+    return GeneratedChallenge(
+        challenge_id=challenge_id,
+        seed=seed,
+        world_seed=world_seed,
+        resource=resource,
+        items=entry.items,
+        target_count=target_count,
+        points=entry.points,
+        goal=goal,
+        duration_seconds=base_cfg.duration_seconds,
+        minecraft_version=base_cfg.minecraft_version,
+        world_type=base_cfg.world_type,
+        generate_structures=base_cfg.generate_structures,
+        difficulty=base_cfg.difficulty,
+        spawn_time=base_cfg.spawn_time,
+        biome=entry.biome,
+    )

@@ -6,14 +6,18 @@ import unittest
 from pathlib import Path
 
 from mcbench.agents import AgentSpec
-from mcbench.batch import (
-    _cleanup_slot_worlds,
-    create_evaluation_batch,
+from mcbench.competitions.resource_gathering import ResourceGatheringCompetition
+from mcbench.competitions.resource_gathering.challenge import (
+    ResourceCatalog,
+    ResourceCatalogEntry,
     generate_challenge,
 )
-from mcbench.container import _write_biome_datapack
-from mcbench.models.challenge import ResourceCatalog, ResourceCatalogEntry
-from mcbench.models.competition import ResourceCompetitionConfig, ResourceTarget
+from mcbench.competitions.resource_gathering.config import (
+    ResourceCompetitionConfig,
+    ResourceTarget,
+)
+from mcbench.core.batch import _cleanup_slot_worlds, create_evaluation_batch
+from mcbench.core.container import _write_biome_datapack
 
 
 class ResourceBatchTest(unittest.TestCase):
@@ -56,7 +60,7 @@ class ResourceBatchTest(unittest.TestCase):
         )
         challenge = generate_challenge(catalog, base, seed=1)
 
-        cfg = challenge.to_competition_config(base)
+        cfg = challenge.to_run_config(base)
 
         self.assertEqual(cfg.id, challenge.challenge_id)
         self.assertEqual(cfg.seed, challenge.world_seed)
@@ -73,6 +77,7 @@ class CleanupSlotWorldsTest(unittest.TestCase):
             resources={"logs": ResourceCatalogEntry(items=["oak_log"], target_range=(8, 8))}
         )
         return create_evaluation_batch(
+            competition=ResourceGatheringCompetition(),
             catalog=catalog,
             base_cfg=ResourceCompetitionConfig(),
             agents=[AgentSpec(name="m", path="/tmp")],
@@ -122,7 +127,7 @@ class BiomePinningTest(unittest.TestCase):
         base = ResourceCompetitionConfig()
         challenge = generate_challenge(catalog, base, seed=1)
         self.assertEqual(challenge.biome, "minecraft:forest")
-        self.assertEqual(challenge.to_competition_config(base).biome, "minecraft:forest")
+        self.assertEqual(challenge.to_run_config(base).biome, "minecraft:forest")
 
     def test_no_biome_defaults_to_none(self) -> None:
         catalog = ResourceCatalog(
@@ -131,7 +136,7 @@ class BiomePinningTest(unittest.TestCase):
         base = ResourceCompetitionConfig()
         challenge = generate_challenge(catalog, base, seed=1)
         self.assertIsNone(challenge.biome)
-        self.assertIsNone(challenge.to_competition_config(base).biome)
+        self.assertIsNone(challenge.to_run_config(base).biome)
 
     def test_write_biome_datapack_creates_valid_preset(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

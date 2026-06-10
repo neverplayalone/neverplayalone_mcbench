@@ -53,26 +53,22 @@ def _run_batch(
     record: bool,
     keep_slots: bool,
 ) -> None:
-    from .batch import (
-        create_evaluation_batch,
-        parse_agent_assignment,
-        run_evaluation_batch,
-    )
-    from .config import load_resource_competition_config, load_resource_catalog
+    from .core import create_evaluation_batch, parse_agent_assignment, run_evaluation_batch
     from .registry import get_competition
 
     try:
-        entry = get_competition(competition_id)
-        cfg_path = config_path or entry.config_path
-        cat_path = catalog_path or entry.catalog_path
+        competition = get_competition(competition_id)
+        cfg_path = config_path or competition.default_config_path()
+        cat_path = catalog_path or competition.default_catalog_path()
         for label, path in (("config", cfg_path), ("catalog", cat_path)):
             if not Path(path).exists():
                 raise ValueError(f"{label} file does not exist: {path}")
 
         agents = [parse_agent_assignment(raw) for raw in agent_assignments]
-        cfg = load_resource_competition_config(cfg_path)
-        catalog = load_resource_catalog(cat_path)
+        cfg = competition.load_config(cfg_path)
+        catalog = competition.load_catalog(cat_path)
         batch = create_evaluation_batch(
+            competition=competition,
             catalog=catalog,
             base_cfg=cfg,
             agents=agents,
@@ -107,14 +103,14 @@ def _batch_options(func):
             "config_path",
             type=click.Path(path_type=Path),
             default=None,
-            help="Base run config (default: the competition's configs/<id>/base.yaml).",
+            help="Base run config (default: the competition's bundled base.yaml).",
         ),
         click.option(
             "--catalog",
             "catalog_path",
             type=click.Path(path_type=Path),
             default=None,
-            help="Resource catalog (default: the competition's configs/<id>/catalog.yaml).",
+            help="Challenge catalog (default: the competition's bundled catalog.yaml).",
         ),
         click.option(
             "--agent",
