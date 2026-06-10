@@ -5,12 +5,14 @@ import unittest
 
 from mcbench.competition import (
     CompetitionScoringConfig,
+    CompetitionSlot,
     KitItem,
     ResourceCompetitionConfig,
     ResourceTarget,
     _distance_multiplier,
     _kit_item_stack,
     _prepare_playable_spawn,
+    _random_rcon_password,
     score_resource_gathering,
 )
 from mcbench.trace import FinalState, Trace, TraceEvent
@@ -45,6 +47,23 @@ class FakeRcon:
 
 
 BANDS = [(20.0, 1.0), (50.0, 0.9), (80.0, 0.8), (110.0, 0.7), (140.0, 0.6)]
+
+
+class RconPasswordTest(unittest.TestCase):
+    def test_password_is_random_not_the_old_constant(self) -> None:
+        pw = _random_rcon_password()
+        self.assertNotEqual(pw, "mcbench")
+        self.assertGreaterEqual(len(pw), 32)
+
+    def test_each_slot_gets_a_distinct_password(self) -> None:
+        a = CompetitionSlot(slot_id=0)
+        b = CompetitionSlot(slot_id=1)
+        self.assertNotEqual(a.rcon_password, "mcbench")
+        self.assertNotEqual(a.rcon_password, b.rcon_password)
+
+    def test_slot_password_flows_into_server_config(self) -> None:
+        slot = CompetitionSlot(slot_id=2)
+        self.assertEqual(slot.server_config().rcon_password, slot.rcon_password)
 
 
 class DistanceMultiplierTest(unittest.TestCase):
