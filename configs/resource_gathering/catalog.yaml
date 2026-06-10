@@ -1,6 +1,8 @@
 resources:
   logs:
     display_name: logs
+    # Pin the world to forest so trees are guaranteed near spawn (no ice-world).
+    biome: minecraft:forest
     items:
       - oak_log
       - birch_log

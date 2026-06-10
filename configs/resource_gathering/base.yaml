@@ -31,9 +31,11 @@ scoring:
   # beyond the last band the multiplier is distance_floor_mult.
   # Time-to-finish is not scored; it only breaks ties between equal scores.
   distance_bands:
-    - [20, 1.0]
-    - [50, 0.9]
-    - [80, 0.8]
-    - [110, 0.7]
-    - [140, 0.6]
-  distance_floor_mult: 0.5
+    - [10, 1.00]
+    - [30, 0.90]
+    - [100, 0.75]
+    - [250, 0.60]
+    - [500, 0.50]
+    - [1000, 0.40]
+    - [2000, 0.30]
+  distance_floor_mult: 0.20
