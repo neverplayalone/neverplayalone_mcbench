@@ -103,6 +103,12 @@ def replay_export_mcpr(packet_log: Path, output: Path | None) -> None:
 @click.option("--base-rcon-port", type=int, default=25675)
 @click.option("--out", "out_dir", type=click.Path(path_type=Path), default=None)
 @click.option("--record/--no-record", default=False, help="Record every miner slot.")
+@click.option(
+    "--keep-slots/--no-keep-slots",
+    default=False,
+    help="Keep per-slot world copies after the batch (for debugging). By default "
+    "they are deleted; scores, traces, recordings, and world_template are kept.",
+)
 def resource_gather_cmd(
     config_path: Path,
     catalog_path: Path,
@@ -113,6 +119,7 @@ def resource_gather_cmd(
     base_rcon_port: int,
     out_dir: Path | None,
     record: bool,
+    keep_slots: bool,
 ) -> None:
     """Run one generated resource-gathering challenge across miner slots."""
     from .competition import load_resource_competition_config
@@ -137,7 +144,7 @@ def resource_gather_cmd(
             base_game_port=base_game_port,
             base_rcon_port=base_rcon_port,
         )
-        report = run_evaluation_batch(batch, record=record)
+        report = run_evaluation_batch(batch, record=record, keep_slots=keep_slots)
     except (ValueError, RuntimeError) as e:
         raise click.ClickException(str(e)) from e
 
