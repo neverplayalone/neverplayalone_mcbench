@@ -325,7 +325,9 @@ def create_evaluation_batch(
     )
 
 
-def run_evaluation_batch(batch: EvaluationBatch, record: bool = False) -> dict[str, Any]:
+def run_evaluation_batch(
+    batch: EvaluationBatch, record: bool = False, keep_slots: bool = False
+) -> dict[str, Any]:
     cfg = batch.challenge.to_competition_config(batch.base_config)
     batch.output_dir.mkdir(parents=True, exist_ok=True)
     template_slot = CompetitionSlot(
@@ -336,7 +338,34 @@ def run_evaluation_batch(batch: EvaluationBatch, record: bool = False) -> dict[s
         data_root=batch.output_dir / "template_slot",
     )
     WorldTemplateBuilder(template_slot).build(cfg, batch.world_template_dir)
-    return ParallelEvaluator(batch, record=record).run()
+    try:
+        return ParallelEvaluator(batch, record=record).run()
+    finally:
+        if keep_slots:
+            console.log(
+                "[yellow]--keep-slots[/]: leaving per-slot world copies under "
+                f"{batch.output_dir}"
+            )
+        else:
+            _cleanup_slot_worlds(batch)
+
+
+def _cleanup_slot_worlds(batch: EvaluationBatch) -> None:
+    """Delete the throwaway world copies a batch leaves behind.
+
+    Every slot copies the full world template (hundreds of MB each) into its own
+    data dir to run, and the template builder leaves its own copy too. Those are
+    disposable once the run is scored, and they accumulate fast across repeated
+    local runs. Scores, traces, recordings, and the canonical world_template are
+    kept; only the running copies are removed.
+    """
+    removed: list[str] = []
+    for target in (batch.output_dir / "slots", batch.output_dir / "template_slot"):
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+            removed.append(target.name)
+    if removed:
+        console.log(f"Cleaned up slot world copies: {', '.join(removed)}")
 
 
 def parse_agent_assignment(raw: str) -> AgentSpec:
