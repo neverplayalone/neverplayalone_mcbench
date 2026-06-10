@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 import math
 import re
+import secrets
 import shutil
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
@@ -139,6 +140,17 @@ class ResourceCompetitionConfig(BaseModel):
         return value
 
 
+def _random_rcon_password() -> str:
+    """A fresh, unguessable RCON password per slot.
+
+    RCON is the score oracle: it both configures the world (op/give/gamemode) and
+    reads the final inventory/position used for scoring. A static shared password
+    means anything that can reach the RCON port can fabricate a perfect score, so
+    each slot gets its own random secret that is never exposed to the agent.
+    """
+    return secrets.token_hex(24)
+
+
 @dataclass(frozen=True)
 class CompetitionSlot:
     """One isolated evaluation slot.
@@ -150,7 +162,7 @@ class CompetitionSlot:
     host: str = "127.0.0.1"
     base_game_port: int = 25565
     base_rcon_port: int = 25575
-    rcon_password: str = "mcbench"
+    rcon_password: str = field(default_factory=_random_rcon_password)
     container_prefix: str = "mcbench-resource"
     data_root: Path = COMPETITION_RESULTS_DIR / "slots"
 
@@ -459,8 +471,10 @@ def _start_slot(
         slot.container_name,
         "-p",
         f"{slot.game_port}:25565",
+        # RCON is the score oracle — publish it on loopback only so it is never
+        # reachable off-host, and pair that with the per-slot random password.
         "-p",
-        f"{slot.rcon_port}:25575",
+        f"{slot.host}:{slot.rcon_port}:25575",
         "-v",
         f"{slot.data_dir}:/data",
         "-v",
