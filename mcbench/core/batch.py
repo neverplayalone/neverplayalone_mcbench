@@ -146,7 +146,6 @@ class ParallelEvaluator:
 def create_evaluation_batch(
     *,
     competition: Competition,
-    catalog: Any,
     base_cfg: RunConfig,
     agents: list[AgentSpec],
     seed: int,
@@ -157,9 +156,7 @@ def create_evaluation_batch(
 ) -> EvaluationBatch:
     if not agents:
         raise ValueError("evaluation batch requires at least one agent")
-    challenge = competition.generate_challenge(
-        catalog, base_cfg, seed, challenge_id=challenge_id
-    )
+    challenge = competition.generate_challenge(base_cfg, seed, challenge_id=challenge_id)
     output = (
         output_dir
         if output_dir is not None

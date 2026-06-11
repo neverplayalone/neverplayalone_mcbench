@@ -75,29 +75,20 @@ class Competition(ABC):
 
     @abstractmethod
     def default_config_path(self) -> Path:
-        """Bundled default run config (configs/base.yaml)."""
-
-    @abstractmethod
-    def default_catalog_path(self) -> Path:
-        """Bundled default challenge catalog (configs/catalog.yaml)."""
+        """Bundled default config (configs/config.yaml) — settings + task catalog."""
 
     @abstractmethod
     def load_config(self, path: str | Path) -> RunConfig:
-        """Parse the run config YAML into this competition's RunConfig subclass."""
-
-    @abstractmethod
-    def load_catalog(self, path: str | Path) -> Any:
-        """Parse the challenge catalog YAML."""
+        """Parse the config YAML into this competition's RunConfig subclass."""
 
     @abstractmethod
     def generate_challenge(
         self,
-        catalog: Any,
         base_cfg: RunConfig,
         seed: int,
         challenge_id: str | None = None,
     ) -> Any:
-        """Deterministically derive the frozen challenge from (catalog, seed).
+        """Deterministically derive the frozen challenge from (config, seed).
 
         The returned object must expose ``challenge_id`` (str), ``world_seed``
         (int), ``model_dump()``, and ``to_run_config(base_cfg) -> RunConfig``.

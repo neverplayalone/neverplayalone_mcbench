@@ -1,4 +1,7 @@
-"""Run config + scoring models specific to resource gathering."""
+"""Run config, challenge catalog, and scoring models for resource gathering.
+
+All loaded from the single bundled ``configs/config.yaml``.
+"""
 
 from __future__ import annotations
 
@@ -48,11 +51,58 @@ class CompetitionScoringConfig(BaseModel):
         return sorted(value, key=lambda band: band[0])
 
 
+class ResourceCatalogEntry(BaseModel):
+    """One logical resource that can be selected for a challenge."""
+
+    items: list[str]
+    target_range: tuple[int, int]
+    points: float = 100.0
+    display_name: str | None = None
+    # Optional biome to pin the whole world to (e.g. "minecraft:forest"), so the
+    # resource is guaranteed present near spawn instead of depending on the seed.
+    biome: str | None = None
+
+    @field_validator("items")
+    @classmethod
+    def items_must_not_be_empty(cls, value: list[str]) -> list[str]:
+        if not value:
+            raise ValueError("catalog resource must count at least one item")
+        return value
+
+    @field_validator("target_range")
+    @classmethod
+    def target_range_must_be_valid(cls, value: tuple[int, int]) -> tuple[int, int]:
+        lo, hi = value
+        if lo <= 0 or hi <= 0 or lo > hi:
+            raise ValueError("target_range must be positive and increasing")
+        return value
+
+
+class ResourceCatalog(BaseModel):
+    """The menu of tasks; the seed picks one entry to form the challenge."""
+
+    resources: dict[str, ResourceCatalogEntry]
+
+    @field_validator("resources")
+    @classmethod
+    def resources_must_not_be_empty(
+        cls, value: dict[str, ResourceCatalogEntry]
+    ) -> dict[str, ResourceCatalogEntry]:
+        if not value:
+            raise ValueError("resource catalog cannot be empty")
+        return value
+
+
 class ResourceCompetitionConfig(RunConfig):
-    """Adds the resource-gathering kit, targets, and scoring to the shared RunConfig."""
+    """Shared RunConfig + the resource-gathering kit, scoring, catalog, and target."""
 
     id: str = "resource_gathering_v1"
     goal: str = "Gather the requested resource before sunset."
     kit: list[KitItem] = Field(default_factory=list)
-    resources: list[ResourceTarget] = Field(default_factory=list)
     scoring: CompetitionScoringConfig = Field(default_factory=CompetitionScoringConfig)
+    # The task menu (present in the bundled config; dropped from the per-run config
+    # once a single challenge has been selected).
+    catalog: ResourceCatalog | None = None
+    # The selected target for one challenge (empty in the base config; filled in by
+    # GeneratedChallenge.to_run_config).
+    resources: list[ResourceTarget] = Field(default_factory=list)

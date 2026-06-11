@@ -10,7 +10,7 @@ from mcrcon import MCRcon
 
 from ...core.competition import Competition, RunConfig
 from ...core.trace import Trace
-from .challenge import GeneratedChallenge, ResourceCatalog, generate_challenge
+from .challenge import GeneratedChallenge, generate_challenge
 from .config import ResourceCompetitionConfig
 from .scoring import score_resource_gathering
 from .world import capture, configure_world, setup_competitor
@@ -22,27 +22,19 @@ class ResourceGatheringCompetition(Competition):
     id = "resource_gathering_v1"
 
     def default_config_path(self) -> Path:
-        return _CONFIG_DIR / "base.yaml"
-
-    def default_catalog_path(self) -> Path:
-        return _CONFIG_DIR / "catalog.yaml"
+        return _CONFIG_DIR / "config.yaml"
 
     def load_config(self, path: str | Path) -> ResourceCompetitionConfig:
         raw = yaml.safe_load(Path(path).read_text()) or {}
         return ResourceCompetitionConfig.model_validate(raw)
 
-    def load_catalog(self, path: str | Path) -> ResourceCatalog:
-        raw = yaml.safe_load(Path(path).read_text()) or {}
-        return ResourceCatalog.model_validate(raw)
-
     def generate_challenge(
         self,
-        catalog: ResourceCatalog,
         base_cfg: RunConfig,
         seed: int,
         challenge_id: str | None = None,
     ) -> GeneratedChallenge:
-        return generate_challenge(catalog, base_cfg, seed, challenge_id=challenge_id)
+        return generate_challenge(base_cfg, seed, challenge_id=challenge_id)
 
     def configure_world(self, mcr: MCRcon, cfg: RunConfig) -> None:
         configure_world(mcr, cfg)

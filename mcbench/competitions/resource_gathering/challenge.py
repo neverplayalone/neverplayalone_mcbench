@@ -1,54 +1,12 @@
-"""Catalog entries, the generated challenge, and deterministic challenge generation."""
+"""The generated challenge and deterministic challenge generation."""
 
 from __future__ import annotations
 
 import random
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel
 
-from ...core.competition import RunConfig
 from .config import ResourceCompetitionConfig, ResourceTarget
-
-
-class ResourceCatalogEntry(BaseModel):
-    """One logical resource that can be selected for a challenge."""
-
-    items: list[str]
-    target_range: tuple[int, int]
-    points: float = 100.0
-    display_name: str | None = None
-    # Optional biome to pin the whole world to (e.g. "minecraft:forest"), so the
-    # resource is guaranteed present near spawn instead of depending on the seed.
-    # None => normal multi-biome generation.
-    biome: str | None = None
-
-    @field_validator("items")
-    @classmethod
-    def items_must_not_be_empty(cls, value: list[str]) -> list[str]:
-        if not value:
-            raise ValueError("catalog resource must count at least one item")
-        return value
-
-    @field_validator("target_range")
-    @classmethod
-    def target_range_must_be_valid(cls, value: tuple[int, int]) -> tuple[int, int]:
-        lo, hi = value
-        if lo <= 0 or hi <= 0 or lo > hi:
-            raise ValueError("target_range must be positive and increasing")
-        return value
-
-
-class ResourceCatalog(BaseModel):
-    resources: dict[str, ResourceCatalogEntry]
-
-    @field_validator("resources")
-    @classmethod
-    def resources_must_not_be_empty(
-        cls, value: dict[str, ResourceCatalogEntry]
-    ) -> dict[str, ResourceCatalogEntry]:
-        if not value:
-            raise ValueError("resource catalog cannot be empty")
-        return value
 
 
 class GeneratedChallenge(BaseModel):
@@ -71,7 +29,9 @@ class GeneratedChallenge(BaseModel):
     biome: str | None = None
 
     def to_run_config(self, base_cfg: ResourceCompetitionConfig) -> ResourceCompetitionConfig:
-        data = base_cfg.model_dump()
+        # Drop the catalog (the menu) from the per-run config: the challenge is
+        # already chosen, so the run only needs the single selected target.
+        data = base_cfg.model_dump(exclude={"catalog"})
         data.update(
             {
                 "id": self.challenge_id,
@@ -98,11 +58,13 @@ class GeneratedChallenge(BaseModel):
 
 
 def generate_challenge(
-    catalog: ResourceCatalog,
-    base_cfg: RunConfig,
+    base_cfg: ResourceCompetitionConfig,
     seed: int,
     challenge_id: str | None = None,
 ) -> GeneratedChallenge:
+    catalog = base_cfg.catalog
+    if catalog is None:
+        raise ValueError("resource-gathering config has no `catalog` section")
     rng = random.Random(seed)
     resource = rng.choice(sorted(catalog.resources))
     entry = catalog.resources[resource]

@@ -35,22 +35,24 @@ mcbench run --competition resource_gathering_v1 \
 
 ## Challenge Model
 
-Each competition bundles its config with its code under
-`mcbench/competitions/<competition>/configs/`. For resource gathering the base
-runtime settings are `mcbench/competitions/resource_gathering/configs/base.yaml`.
-The default starter kit intentionally uses unenchanted netherite tools. This
-keeps Mineflayer/prismarine agents compatible with Minecraft 1.21 item metadata
-while still giving every miner strong baseline tools.
+Each competition bundles a single config file with its code at
+`mcbench/competitions/<competition>/configs/config.yaml`. It holds the run
+settings (version, memory, duration, world_size, difficulty, kit, scoring) and
+the challenge `catalog` — the menu of tasks the seed picks from. The default
+starter kit intentionally uses unenchanted netherite tools, keeping
+Mineflayer/prismarine agents compatible with Minecraft 1.21 item metadata while
+still giving every miner strong baseline tools.
 
-The resource catalog lives in
-`mcbench/competitions/resource_gathering/configs/catalog.yaml`:
+The `catalog` section lists the selectable resources:
 
 ```yaml
-resources:
-  logs:
-    items: [oak_log, birch_log, spruce_log]
-    target_range: [16, 128]
-    points: 100
+catalog:
+  resources:
+    logs:
+      biome: minecraft:forest
+      items: [oak_log, birch_log, spruce_log]
+      target_range: [100, 150]
+      points: 100
 ```
 
 For each evaluation batch, the validator derives a deterministic generated
@@ -123,7 +125,7 @@ mcbench/                   Python package
   agents/                  Agent subprocess adapter
   competitions/
     resource_gathering/    v1 plugin: competition, config, challenge,
-      configs/             scoring, world setup, + bundled base.yaml/catalog.yaml
+      configs/             scoring, world setup, + bundled config.yaml
 agents_examples/
   log_gatherer/            Reference Mineflayer log-gathering miner
 docker/                    Paper server config (bukkit.yml)

@@ -43,7 +43,6 @@ def _run_batch(
     *,
     competition_id: str,
     config_path: Path | None,
-    catalog_path: Path | None,
     agent_assignments: tuple[str, ...],
     seed: int,
     challenge_id: str | None,
@@ -59,17 +58,13 @@ def _run_batch(
     try:
         competition = get_competition(competition_id)
         cfg_path = config_path or competition.default_config_path()
-        cat_path = catalog_path or competition.default_catalog_path()
-        for label, path in (("config", cfg_path), ("catalog", cat_path)):
-            if not Path(path).exists():
-                raise ValueError(f"{label} file does not exist: {path}")
+        if not Path(cfg_path).exists():
+            raise ValueError(f"config file does not exist: {cfg_path}")
 
         agents = [parse_agent_assignment(raw) for raw in agent_assignments]
         cfg = competition.load_config(cfg_path)
-        catalog = competition.load_catalog(cat_path)
         batch = create_evaluation_batch(
             competition=competition,
-            catalog=catalog,
             base_cfg=cfg,
             agents=agents,
             seed=seed,
@@ -103,14 +98,7 @@ def _batch_options(func):
             "config_path",
             type=click.Path(path_type=Path),
             default=None,
-            help="Base run config (default: the competition's bundled base.yaml).",
-        ),
-        click.option(
-            "--catalog",
-            "catalog_path",
-            type=click.Path(path_type=Path),
-            default=None,
-            help="Challenge catalog (default: the competition's bundled catalog.yaml).",
+            help="Run config (default: the competition's bundled config.yaml).",
         ),
         click.option(
             "--agent",
