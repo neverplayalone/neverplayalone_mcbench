@@ -13,11 +13,10 @@ import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
-from mcbench.agents import AgentSpec, SubprocessAgent
 from mcbench.minecraft.rcon import rcon_session
 from mcbench.minecraft.server import wait_for_ready
 from mcbench.paths import RESULTS_DIR
@@ -27,7 +26,34 @@ from mcbench.core.container import _start_slot, _stop_slot
 from mcbench.core.runner import run_task
 from mcbench.core.slot import Slot
 
+# Imported lazily inside functions to avoid an import cycle: mcbench.agents pulls
+# in mcbench.core.trace, which triggers this package's __init__.
+if TYPE_CHECKING:
+    from mcbench.agents import Agent, AgentSpec
+
 console = Console()
+
+AGENT_MODES = ("subprocess", "docker")
+
+
+def make_agent(
+    spec: AgentSpec, *, mode: str, slot: Slot, image: str | None = None
+) -> Agent:
+    """Build the agent for one slot in the requested execution mode.
+
+    ``subprocess`` runs the agent directly on the host (fast, for trusted local
+    development). ``docker`` runs it inside a sandboxed container (for untrusted /
+    submitted agent code). This is the single place an agent is constructed.
+    """
+    from mcbench.agents import DockerAgent, SubprocessAgent
+
+    if mode == "docker":
+        return DockerAgent(
+            spec, container_name=f"mcbench-agent-{slot.slot_id}", image=image
+        )
+    if mode == "subprocess":
+        return SubprocessAgent(spec)
+    raise ValueError(f"unknown agent mode {mode!r}; expected one of {AGENT_MODES}")
 
 
 @dataclass(frozen=True)
@@ -79,15 +105,28 @@ class WorldTemplateBuilder:
 class ParallelEvaluator:
     """Run all agent slots for one batch and write an aggregate report."""
 
-    def __init__(self, batch: EvaluationBatch, record: bool = False):
+    def __init__(
+        self,
+        batch: EvaluationBatch,
+        record: bool = False,
+        agent_mode: str = "subprocess",
+    ):
         self.batch = batch
         self.record = record
+        self.agent_mode = agent_mode
+        self._agent_image: str | None = None
 
     def run(self) -> dict[str, Any]:
         self.batch.output_dir.mkdir(parents=True, exist_ok=True)
         instance_path = self.batch.output_dir / "generated_instance.json"
         instance_path.write_text(self.batch.instance.model_dump_json(indent=2))
         cfg = self.batch.instance.to_run_config(self.batch.base_config)
+        # Build the sandbox image once, before slots fan out, so parallel slots
+        # don't each trigger a concurrent build.
+        if self.agent_mode == "docker":
+            from mcbench.agents import ensure_agent_image
+
+            self._agent_image = ensure_agent_image()
         results: list[dict[str, Any]] = []
         started_at = time.time()
 
@@ -124,7 +163,12 @@ class ParallelEvaluator:
         return report
 
     def _run_slot(self, cfg: RunConfig, slot: EvaluationSlot) -> dict[str, Any]:
-        agent = SubprocessAgent(slot.agent_spec)
+        agent = make_agent(
+            slot.agent_spec,
+            mode=self.agent_mode,
+            slot=slot.slot,
+            image=self._agent_image,
+        )
         record = RecordOptions(target_username=cfg.username) if self.record else None
         report = run_task(
             self.batch.task,
@@ -188,7 +232,10 @@ def create_evaluation_batch(
 
 
 def run_evaluation_batch(
-    batch: EvaluationBatch, record: bool = False, keep_slots: bool = False
+    batch: EvaluationBatch,
+    record: bool = False,
+    keep_slots: bool = False,
+    agent_mode: str = "subprocess",
 ) -> dict[str, Any]:
     cfg = batch.instance.to_run_config(batch.base_config)
     batch.output_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +248,7 @@ def run_evaluation_batch(
     )
     WorldTemplateBuilder(template_slot).build(batch.task, cfg, batch.world_template_dir)
     try:
-        return ParallelEvaluator(batch, record=record).run()
+        return ParallelEvaluator(batch, record=record, agent_mode=agent_mode).run()
     finally:
         if keep_slots:
             console.log(
@@ -228,6 +275,8 @@ def _cleanup_slot_worlds(batch: EvaluationBatch) -> None:
 
 
 def parse_agent_assignment(raw: str) -> AgentSpec:
+    from mcbench.agents import AgentSpec
+
     if "=" in raw:
         name, path_raw = raw.split("=", 1)
         if not name:

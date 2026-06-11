@@ -51,6 +51,7 @@ def _run_batch(
     out_dir: Path | None,
     record: bool,
     keep_slots: bool,
+    agent_mode: str,
 ) -> None:
     from mcbench.core import create_evaluation_batch, parse_agent_assignment, run_evaluation_batch
     from mcbench.registry import get_task
@@ -73,7 +74,9 @@ def _run_batch(
             base_game_port=base_game_port,
             base_rcon_port=base_rcon_port,
         )
-        report = run_evaluation_batch(batch, record=record, keep_slots=keep_slots)
+        report = run_evaluation_batch(
+            batch, record=record, keep_slots=keep_slots, agent_mode=agent_mode
+        )
     except (ValueError, RuntimeError) as e:
         raise click.ClickException(str(e)) from e
 
@@ -124,6 +127,14 @@ def _batch_options(func):
             help="Keep per-slot world copies after the batch (default: delete; "
             "scores, traces, recordings, and world_template are kept).",
         ),
+        click.option(
+            "--agent-mode",
+            type=click.Choice(["subprocess", "docker"]),
+            default="subprocess",
+            show_default=True,
+            help="How to run agent code: 'subprocess' on the host (trusted, fast) "
+            "or 'docker' in a sandboxed container (untrusted/submitted code).",
+        ),
     ]
     for option in reversed(options):
         func = option(func)
@@ -149,6 +160,18 @@ def run_cmd(task_id: str, **kwargs) -> None:
 def resource_gather_cmd(**kwargs) -> None:
     """Alias for `run --task resource_gathering_v1`."""
     _run_batch(task_id="resource_gathering_v1", **kwargs)
+
+
+@main.command("build-agent-image")
+def build_agent_image_cmd() -> None:
+    """Build the sandbox runtime image used by `--agent-mode docker`."""
+    from mcbench.agents import ensure_agent_image
+
+    try:
+        tag = ensure_agent_image()
+    except RuntimeError as e:
+        raise click.ClickException(str(e)) from e
+    console.log(f"[bold green]Agent runtime image ready:[/] {tag}")
 
 
 if __name__ == "__main__":

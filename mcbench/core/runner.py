@@ -11,12 +11,10 @@ import json
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
 
-from mcbench.agents import Agent
-from mcbench.agents.base import AgentRunContext
 from mcbench.minecraft.rcon import rcon_session
 from mcbench.minecraft.server import wait_for_ready
 from mcbench.paths import RESULTS_DIR
@@ -31,6 +29,11 @@ from mcbench.core.task import Task, RunConfig
 from mcbench.core.container import _start_slot, _stop_slot
 from mcbench.core.slot import Slot
 from mcbench.core.trace import Trace, TraceEvent
+
+# Imported lazily inside run_task to avoid an import cycle (mcbench.agents pulls
+# in mcbench.core.trace, which triggers mcbench.core's __init__).
+if TYPE_CHECKING:
+    from mcbench.agents import Agent
 
 console = Console()
 
@@ -98,6 +101,8 @@ def run_task(
                         trace.append(
                             TraceEvent(kind="error", data={"msg": f"recorder setup failed: {e}"})
                         )
+
+            from mcbench.agents.base import AgentRunContext
 
             ctx = AgentRunContext(
                 host=server.host,
