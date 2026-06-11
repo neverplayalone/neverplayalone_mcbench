@@ -6,24 +6,24 @@ import unittest
 from pathlib import Path
 
 from mcbench.agents import AgentSpec
-from mcbench.competitions.resource_gathering import ResourceGatheringCompetition
-from mcbench.competitions.resource_gathering.challenge import generate_challenge
-from mcbench.competitions.resource_gathering.config import (
+from mcbench.tasks.resource_gathering import ResourceGatheringTask
+from mcbench.tasks.resource_gathering.instance import generate_instance
+from mcbench.tasks.resource_gathering.config import (
     ResourceCatalog,
     ResourceCatalogEntry,
-    ResourceCompetitionConfig,
+    ResourceGatheringTaskConfig,
     ResourceTarget,
 )
 from mcbench.core.batch import _cleanup_slot_worlds, create_evaluation_batch
 from mcbench.core.container import _write_biome_datapack
 
 
-def _config_with_catalog(resources: dict, **kwargs) -> ResourceCompetitionConfig:
-    return ResourceCompetitionConfig(catalog=ResourceCatalog(resources=resources), **kwargs)
+def _config_with_catalog(resources: dict, **kwargs) -> ResourceGatheringTaskConfig:
+    return ResourceGatheringTaskConfig(catalog=ResourceCatalog(resources=resources), **kwargs)
 
 
 class ResourceBatchTest(unittest.TestCase):
-    def test_generate_challenge_is_deterministic(self) -> None:
+    def test_generate_instance_is_deterministic(self) -> None:
         base = _config_with_catalog(
             {
                 "logs": ResourceCatalogEntry(
@@ -34,15 +34,15 @@ class ResourceBatchTest(unittest.TestCase):
             duration_seconds=1200,
         )
 
-        first = generate_challenge(base, seed=123)
-        second = generate_challenge(base, seed=123)
+        first = generate_instance(base, seed=123)
+        second = generate_instance(base, seed=123)
 
         self.assertEqual(first, second)
         self.assertIn(first.resource, base.catalog.resources)
         self.assertIn(str(first.target_count), first.goal)
         self.assertIn("within 20 blocks of spawn", first.goal)
 
-    def test_challenge_converts_to_single_target_run_config(self) -> None:
+    def test_instance_converts_to_single_target_run_config(self) -> None:
         base = _config_with_catalog(
             {
                 "logs": ResourceCatalogEntry(
@@ -52,13 +52,13 @@ class ResourceBatchTest(unittest.TestCase):
             id="base",
             duration_seconds=1200,
         )
-        challenge = generate_challenge(base, seed=1)
+        instance = generate_instance(base, seed=1)
 
-        cfg = challenge.to_run_config(base)
+        cfg = instance.to_run_config(base)
 
-        self.assertEqual(cfg.id, challenge.challenge_id)
-        self.assertEqual(cfg.seed, challenge.world_seed)
-        self.assertEqual(cfg.goal, challenge.goal)
+        self.assertEqual(cfg.id, instance.instance_id)
+        self.assertEqual(cfg.seed, instance.world_seed)
+        self.assertEqual(cfg.goal, instance.goal)
         self.assertEqual(len(cfg.resources), 1)
         self.assertEqual(cfg.resources[0].item, "logs")
         self.assertEqual(cfg.resources[0].items, ["oak_log", "birch_log"])
@@ -66,18 +66,18 @@ class ResourceBatchTest(unittest.TestCase):
         # The catalog (the menu) is dropped from the per-run config.
         self.assertIsNone(cfg.catalog)
 
-    def test_generate_challenge_requires_catalog(self) -> None:
+    def test_generate_instance_requires_catalog(self) -> None:
         with self.assertRaises(ValueError):
-            generate_challenge(ResourceCompetitionConfig(), seed=1)
+            generate_instance(ResourceGatheringTaskConfig(), seed=1)
 
 
 class BundledConfigTest(unittest.TestCase):
     def test_bundled_config_loads_with_catalog(self) -> None:
-        comp = ResourceGatheringCompetition()
+        comp = ResourceGatheringTask()
         cfg = comp.load_config(comp.default_config_path())
         self.assertIsNotNone(cfg.catalog)
         self.assertIn("logs", cfg.catalog.resources)
-        ch = comp.generate_challenge(cfg, seed=7)
+        ch = comp.generate_instance(cfg, seed=7)
         self.assertIn(ch.resource, cfg.catalog.resources)
 
 
@@ -87,7 +87,7 @@ class CleanupSlotWorldsTest(unittest.TestCase):
             {"logs": ResourceCatalogEntry(items=["oak_log"], target_range=(8, 8))}
         )
         return create_evaluation_batch(
-            competition=ResourceGatheringCompetition(),
+            task=ResourceGatheringTask(),
             base_cfg=base,
             agents=[AgentSpec(name="m", path="/tmp")],
             seed=1,
@@ -106,15 +106,15 @@ class CleanupSlotWorldsTest(unittest.TestCase):
             # ...and the artifacts that must survive.
             (out / "world_template").mkdir(parents=True)
             (out / "world_template" / "level.dat").write_text("x")
-            (out / "miners" / "m__slot0").mkdir(parents=True)
-            (out / "miners" / "m__slot0" / "score.json").write_text("{}")
+            (out / "agents" / "m__slot0").mkdir(parents=True)
+            (out / "agents" / "m__slot0" / "score.json").write_text("{}")
 
             _cleanup_slot_worlds(batch)
 
             self.assertFalse((out / "slots").exists())
             self.assertFalse((out / "template_slot").exists())
             self.assertTrue((out / "world_template" / "level.dat").exists())
-            self.assertTrue((out / "miners" / "m__slot0" / "score.json").exists())
+            self.assertTrue((out / "agents" / "m__slot0" / "score.json").exists())
 
     def test_idempotent_when_nothing_to_clean(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -125,7 +125,7 @@ class CleanupSlotWorldsTest(unittest.TestCase):
 
 
 class BiomePinningTest(unittest.TestCase):
-    def test_biome_propagates_catalog_to_challenge_to_config(self) -> None:
+    def test_biome_propagates_catalog_to_instance_to_config(self) -> None:
         base = _config_with_catalog(
             {
                 "logs": ResourceCatalogEntry(
@@ -133,17 +133,17 @@ class BiomePinningTest(unittest.TestCase):
                 )
             }
         )
-        challenge = generate_challenge(base, seed=1)
-        self.assertEqual(challenge.biome, "minecraft:forest")
-        self.assertEqual(challenge.to_run_config(base).biome, "minecraft:forest")
+        instance = generate_instance(base, seed=1)
+        self.assertEqual(instance.biome, "minecraft:forest")
+        self.assertEqual(instance.to_run_config(base).biome, "minecraft:forest")
 
     def test_no_biome_defaults_to_none(self) -> None:
         base = _config_with_catalog(
             {"coal": ResourceCatalogEntry(items=["coal"], target_range=(8, 8))}
         )
-        challenge = generate_challenge(base, seed=1)
-        self.assertIsNone(challenge.biome)
-        self.assertIsNone(challenge.to_run_config(base).biome)
+        instance = generate_instance(base, seed=1)
+        self.assertIsNone(instance.biome)
+        self.assertIsNone(instance.to_run_config(base).biome)
 
     def test_write_biome_datapack_creates_valid_preset(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

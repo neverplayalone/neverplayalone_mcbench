@@ -1,6 +1,6 @@
-"""Generic benchmark engine — competition-agnostic.
+"""Generic benchmark engine — task-agnostic.
 
-Drives any :class:`Competition`: Docker slots, RCON, the agent subprocess,
+Drives any :class:`Task`: Docker slots, RCON, the agent subprocess,
 recording, the run loop, and parallel batching all live here.
 """
 
@@ -15,14 +15,14 @@ from .batch import (
     parse_agent_assignment,
     run_evaluation_batch,
 )
-from .competition import USERNAME, Competition, KitItem, RunConfig
-from .runner import run_competition
-from .slot import CompetitionSlot
+from .task import USERNAME, Task, KitItem, RunConfig
+from .runner import run_task
+from .slot import Slot
 from .trace import FinalState, Trace, TraceEvent, parse_event_line
 
 __all__ = [
-    "Competition",
-    "CompetitionSlot",
+    "Task",
+    "Slot",
     "EvaluationBatch",
     "EvaluationSlot",
     "FinalState",
@@ -36,6 +36,6 @@ __all__ = [
     "create_evaluation_batch",
     "parse_agent_assignment",
     "parse_event_line",
-    "run_competition",
+    "run_task",
     "run_evaluation_batch",
 ]

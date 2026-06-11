@@ -1,7 +1,7 @@
 """Generic world primitives over RCON: playable-spawn search.
 
-Competition-agnostic helpers. World rules (gamerules, mobs, kit) live with each
-competition.
+Task-agnostic helpers. World rules (gamerules, mobs, kit) live with each
+task.
 """
 
 from __future__ import annotations

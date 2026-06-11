@@ -1,6 +1,6 @@
-"""Resource-gathering world rules: configure the world, set up the competitor, capture.
+"""Resource-gathering world rules: configure the world, set up the agent, capture.
 
-These are the competition-specific RCON interactions. Generic primitives (spawn
+These are the task-specific RCON interactions. Generic primitives (spawn
 search, RCON parsers) come from ``mcbench.minecraft``.
 """
 
@@ -11,15 +11,15 @@ from typing import Any
 
 from mcrcon import MCRcon
 
-from ...core.competition import KitItem
+from ...core.task import KitItem
 from ...core.trace import FinalState
 from ...minecraft.commands import _count_item, _parse_pos, _parse_scalar, _read_score
 from ...minecraft.world import _prepare_playable_spawn
-from .config import ResourceCompetitionConfig
+from .config import ResourceGatheringTaskConfig
 from .scoring import _counted_items, _horizontal_distance_from_spawn
 
 
-def configure_world(mcr: MCRcon, cfg: ResourceCompetitionConfig) -> None:
+def configure_world(mcr: MCRcon, cfg: ResourceGatheringTaskConfig) -> None:
     mcr.command("gamerule keep_inventory false")
     mcr.command("gamerule advance_time true")
     mcr.command("gamerule advance_weather true")
@@ -33,8 +33,8 @@ def configure_world(mcr: MCRcon, cfg: ResourceCompetitionConfig) -> None:
     mcr.command(f"worldborder set {cfg.world_size}")
 
 
-def setup_competitor(
-    mcr: MCRcon, cfg: ResourceCompetitionConfig
+def setup_agent(
+    mcr: MCRcon, cfg: ResourceGatheringTaskConfig
 ) -> tuple[int, tuple[int, int, int]]:
     mcr.command(f"op {cfg.username}")
     mcr.command(f"clear {cfg.username}")
@@ -53,7 +53,7 @@ def setup_competitor(
 
 def capture(
     mcr: MCRcon,
-    cfg: ResourceCompetitionConfig,
+    cfg: ResourceGatheringTaskConfig,
     setup_state: tuple[int, tuple[int, int, int] | None] | None,
 ) -> dict[str, Any]:
     death_baseline, spawn_pos = setup_state if setup_state else (0, None)

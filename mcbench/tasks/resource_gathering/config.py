@@ -1,4 +1,4 @@
-"""Run config, challenge catalog, and scoring models for resource gathering.
+"""Run config, instance catalog, and scoring models for resource gathering.
 
 All loaded from the single bundled ``configs/config.yaml``.
 """
@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field, field_validator
 
-from ...core.competition import KitItem, RunConfig
+from ...core.task import KitItem, RunConfig
 
 
 class ResourceTarget(BaseModel):
@@ -24,7 +24,7 @@ class ResourceTarget(BaseModel):
         return value
 
 
-class CompetitionScoringConfig(BaseModel):
+class TaskScoringConfig(BaseModel):
     # Final score = resource_score * distance_multiplier. distance_bands maps an
     # upper distance bound (blocks from spawn) to the multiplier applied at or
     # below it, evaluated low-to-high; beyond the last band the multiplier is
@@ -52,7 +52,7 @@ class CompetitionScoringConfig(BaseModel):
 
 
 class ResourceCatalogEntry(BaseModel):
-    """One logical resource that can be selected for a challenge."""
+    """One logical resource that can be selected for a instance."""
 
     items: list[str]
     target_range: tuple[int, int]
@@ -79,7 +79,7 @@ class ResourceCatalogEntry(BaseModel):
 
 
 class ResourceCatalog(BaseModel):
-    """The menu of tasks; the seed picks one entry to form the challenge."""
+    """The menu of tasks; the seed picks one entry to form the instance."""
 
     resources: dict[str, ResourceCatalogEntry]
 
@@ -93,16 +93,16 @@ class ResourceCatalog(BaseModel):
         return value
 
 
-class ResourceCompetitionConfig(RunConfig):
+class ResourceGatheringTaskConfig(RunConfig):
     """Shared RunConfig + the resource-gathering kit, scoring, catalog, and target."""
 
     id: str = "resource_gathering_v1"
     goal: str = "Gather the requested resource before sunset."
     kit: list[KitItem] = Field(default_factory=list)
-    scoring: CompetitionScoringConfig = Field(default_factory=CompetitionScoringConfig)
+    scoring: TaskScoringConfig = Field(default_factory=TaskScoringConfig)
     # The task menu (present in the bundled config; dropped from the per-run config
-    # once a single challenge has been selected).
+    # once a single instance has been selected).
     catalog: ResourceCatalog | None = None
-    # The selected target for one challenge (empty in the base config; filled in by
-    # GeneratedChallenge.to_run_config).
+    # The selected target for one instance (empty in the base config; filled in by
+    # TaskInstance.to_run_config).
     resources: list[ResourceTarget] = Field(default_factory=list)

@@ -35,7 +35,7 @@ class FinalState(BaseModel):
 
 
 class Trace(BaseModel):
-    challenge_id: str
+    instance_id: str
     agent_name: str
     started_at: float
     # When the agent first reported `ready` (spawned in-world). The agent-active

@@ -8,8 +8,8 @@ import subprocess
 from pathlib import Path
 
 from ..paths import DOCKER_DIR
-from .competition import RunConfig
-from .slot import CompetitionSlot
+from .task import RunConfig
+from .slot import Slot
 
 # world_preset id provided by the datapack we write for single-biome worlds.
 SINGLE_BIOME_LEVEL_TYPE = "mcbench:single_biome"
@@ -70,7 +70,7 @@ def _write_biome_datapack(data_dir: Path, biome: str) -> None:
 
 
 def _start_slot(
-    slot: CompetitionSlot,
+    slot: Slot,
     cfg: RunConfig,
     world_template: Path | None = None,
 ) -> None:
@@ -141,10 +141,10 @@ def _start_slot(
         f"SEED={cfg.seed}",
         "itzg/minecraft-server:latest",
     ]
-    _run(cmd, f"starting competition slot {slot.slot_id}")
+    _run(cmd, f"starting task slot {slot.slot_id}")
 
 
-def _stop_slot(slot: CompetitionSlot, quiet: bool = False) -> None:
+def _stop_slot(slot: Slot, quiet: bool = False) -> None:
     result = subprocess.run(
         ["docker", "rm", "-f", slot.container_name],
         check=False,
