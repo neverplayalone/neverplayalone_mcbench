@@ -17,15 +17,15 @@ from typing import Any
 
 from rich.console import Console
 
-from ..agents import AgentSpec, SubprocessAgent
-from ..minecraft.rcon import rcon_session
-from ..minecraft.server import wait_for_ready
-from ..paths import RESULTS_DIR
-from ..recording.recorder import RecordOptions
-from .task import Task, RunConfig
-from .container import _start_slot, _stop_slot
-from .runner import run_task
-from .slot import Slot
+from mcbench.agents import AgentSpec, SubprocessAgent
+from mcbench.minecraft.rcon import rcon_session
+from mcbench.minecraft.server import wait_for_ready
+from mcbench.paths import RESULTS_DIR
+from mcbench.recording.recorder import RecordOptions
+from mcbench.core.task import Task, RunConfig
+from mcbench.core.container import _start_slot, _stop_slot
+from mcbench.core.runner import run_task
+from mcbench.core.slot import Slot
 
 console = Console()
 

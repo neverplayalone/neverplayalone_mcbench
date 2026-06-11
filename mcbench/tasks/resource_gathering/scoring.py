@@ -6,8 +6,8 @@ import math
 import time
 from typing import Any
 
-from ...core.trace import Trace
-from .config import ResourceGatheringTaskConfig, ResourceTarget
+from mcbench.core.trace import Trace
+from mcbench.tasks.resource_gathering.config import ResourceGatheringTaskConfig, ResourceTarget
 
 def score_resource_gathering(
     cfg: ResourceGatheringTaskConfig,

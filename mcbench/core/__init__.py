@@ -6,7 +6,7 @@ recording, the run loop, and parallel batching all live here.
 
 from __future__ import annotations
 
-from .batch import (
+from mcbench.core.batch import (
     EvaluationBatch,
     EvaluationSlot,
     ParallelEvaluator,
@@ -15,10 +15,10 @@ from .batch import (
     parse_agent_assignment,
     run_evaluation_batch,
 )
-from .task import USERNAME, Task, KitItem, RunConfig
-from .runner import run_task
-from .slot import Slot
-from .trace import FinalState, Trace, TraceEvent, parse_event_line
+from mcbench.core.task import USERNAME, Task, KitItem, RunConfig
+from mcbench.core.runner import run_task
+from mcbench.core.slot import Slot
+from mcbench.core.trace import FinalState, Trace, TraceEvent, parse_event_line
 
 __all__ = [
     "Task",

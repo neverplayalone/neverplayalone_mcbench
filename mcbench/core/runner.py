@@ -15,22 +15,22 @@ from typing import Any
 
 from rich.console import Console
 
-from ..agents import Agent
-from ..agents.base import AgentRunContext
-from ..minecraft.rcon import rcon_session
-from ..minecraft.server import wait_for_ready
-from ..paths import RESULTS_DIR
-from ..recording.recorder import (
+from mcbench.agents import Agent
+from mcbench.agents.base import AgentRunContext
+from mcbench.minecraft.rcon import rcon_session
+from mcbench.minecraft.server import wait_for_ready
+from mcbench.paths import RESULTS_DIR
+from mcbench.recording.recorder import (
     Recorder,
     RecordOptions,
     is_available as recorder_available,
     wait_for_settle,
 )
-from ..recording.replay import export_mcpr
-from .task import Task, RunConfig
-from .container import _start_slot, _stop_slot
-from .slot import Slot
-from .trace import Trace, TraceEvent
+from mcbench.recording.replay import export_mcpr
+from mcbench.core.task import Task, RunConfig
+from mcbench.core.container import _start_slot, _stop_slot
+from mcbench.core.slot import Slot
+from mcbench.core.trace import Trace, TraceEvent
 
 console = Console()
 
