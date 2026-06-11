@@ -21,8 +21,8 @@ from pathlib import Path
 from queue import Empty, Queue
 from typing import Iterator
 
-from ..core.trace import TraceEvent, parse_event_line
-from .base import Agent, AgentRunContext
+from mcbench.core.trace import TraceEvent, parse_event_line
+from mcbench.agents.base import Agent, AgentRunContext
 
 
 def _detect_launch(path: Path) -> list[str]:

@@ -7,7 +7,7 @@ from pathlib import Path
 import click
 from rich.console import Console
 
-from .recording.replay import export_mcpr
+from mcbench.recording.replay import export_mcpr
 
 console = Console()
 
@@ -52,8 +52,8 @@ def _run_batch(
     record: bool,
     keep_slots: bool,
 ) -> None:
-    from .core import create_evaluation_batch, parse_agent_assignment, run_evaluation_batch
-    from .registry import get_task
+    from mcbench.core import create_evaluation_batch, parse_agent_assignment, run_evaluation_batch
+    from mcbench.registry import get_task
 
     try:
         task = get_task(task_id)

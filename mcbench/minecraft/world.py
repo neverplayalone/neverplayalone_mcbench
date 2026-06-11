@@ -12,7 +12,7 @@ import time
 from mcrcon import MCRcon
 from rich.console import Console
 
-from .commands import _block_matches, _parse_pos
+from mcbench.minecraft.commands import _block_matches, _parse_pos
 
 console = Console()
 

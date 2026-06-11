@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from .rcon import rcon_session
+from mcbench.minecraft.rcon import rcon_session
 
 
 @dataclass

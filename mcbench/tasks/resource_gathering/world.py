@@ -11,12 +11,12 @@ from typing import Any
 
 from mcrcon import MCRcon
 
-from ...core.task import KitItem
-from ...core.trace import FinalState
-from ...minecraft.commands import _count_item, _parse_pos, _parse_scalar, _read_score
-from ...minecraft.world import _prepare_playable_spawn
-from .config import ResourceGatheringTaskConfig
-from .scoring import _counted_items, _horizontal_distance_from_spawn
+from mcbench.core.task import KitItem
+from mcbench.core.trace import FinalState
+from mcbench.minecraft.commands import _count_item, _parse_pos, _parse_scalar, _read_score
+from mcbench.minecraft.world import _prepare_playable_spawn
+from mcbench.tasks.resource_gathering.config import ResourceGatheringTaskConfig
+from mcbench.tasks.resource_gathering.scoring import _counted_items, _horizontal_distance_from_spawn
 
 
 def configure_world(mcr: MCRcon, cfg: ResourceGatheringTaskConfig) -> None:
