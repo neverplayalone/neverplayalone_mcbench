@@ -1,8 +1,8 @@
 """Single-slot run: start server, configure the world, run the agent, capture, score.
 
-This is the generic engine loop. Everything competition-specific (world rules,
+This is the generic engine loop. Everything task-specific (world rules,
 kit/spawn setup, what to capture, how to score) is delegated to the supplied
-:class:`Competition`.
+:class:`Task`.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from ..agents import Agent
 from ..agents.base import AgentRunContext
 from ..minecraft.rcon import rcon_session
 from ..minecraft.server import wait_for_ready
-from ..paths import COMPETITION_RESULTS_DIR
+from ..paths import RESULTS_DIR
 from ..recording.recorder import (
     Recorder,
     RecordOptions,
@@ -27,31 +27,31 @@ from ..recording.recorder import (
     wait_for_settle,
 )
 from ..recording.replay import export_mcpr
-from .competition import Competition, RunConfig
+from .task import Task, RunConfig
 from .container import _start_slot, _stop_slot
-from .slot import CompetitionSlot
+from .slot import Slot
 from .trace import Trace, TraceEvent
 
 console = Console()
 
 
-def run_competition(
-    competition: Competition,
+def run_task(
+    task: Task,
     cfg: RunConfig,
     agent: Agent,
-    slot: CompetitionSlot | None = None,
+    slot: Slot | None = None,
     out_dir: str | Path | None = None,
     keep_server: bool = False,
     record: RecordOptions | None = None,
     world_template: str | Path | None = None,
 ) -> dict[str, Any]:
-    slot = slot or CompetitionSlot()
+    slot = slot or Slot()
     run_id = f"{cfg.id}__{agent.spec.name}__seed{cfg.seed}__slot{slot.slot_id}"
-    output = Path(out_dir) if out_dir else COMPETITION_RESULTS_DIR / run_id
+    output = Path(out_dir) if out_dir else RESULTS_DIR / run_id
     shutil.rmtree(output, ignore_errors=True)
     output.mkdir(parents=True, exist_ok=True)
 
-    trace = Trace(challenge_id=cfg.id, agent_name=agent.spec.name, started_at=time.time())
+    trace = Trace(instance_id=cfg.id, agent_name=agent.spec.name, started_at=time.time())
     setup_done = False
     timed_out = False
     setup_state: Any = None
@@ -61,7 +61,7 @@ def run_competition(
 
     try:
         console.log(
-            f"[bold cyan]{competition.id}[/]: {run_id} | "
+            f"[bold cyan]{task.id}[/]: {run_id} | "
             f"slot {slot.slot_id} | ports {slot.game_port}/{slot.rcon_port}"
         )
         _start_slot(slot, cfg, world_template=Path(world_template) if world_template else None)
@@ -70,7 +70,7 @@ def run_competition(
             server = slot.server_config()
             wait_for_ready(server, timeout=600)
             with rcon_session(server.host, server.rcon_port, server.rcon_password) as mcr:
-                competition.configure_world(mcr, cfg)
+                task.configure_world(mcr, cfg)
 
             if record is not None:
                 ok, reason = recorder_available()
@@ -103,7 +103,7 @@ def run_competition(
                 host=server.host,
                 port=server.game_port,
                 username=cfg.username,
-                goal=competition.goal_text(cfg),
+                goal=task.goal_text(cfg),
                 timeout_seconds=cfg.duration_seconds,
             )
             console.log(
@@ -115,11 +115,11 @@ def run_competition(
                     timed_out = True
                 if not setup_done and event.kind == "ready":
                     trace.agent_ready_at = time.time()
-                    console.log("Agent spawned; applying competition kit and timer setup...")
+                    console.log("Agent spawned; applying task kit and timer setup...")
                     with rcon_session(
                         server.host, server.rcon_port, server.rcon_password
                     ) as mcr:
-                        setup_state = competition.setup_competitor(mcr, cfg)
+                        setup_state = task.setup_agent(mcr, cfg)
                         if recorder is not None and record is not None:
                             mcr.command(f"tp {record.recorder_username} {cfg.username}")
                             mcr.command(f"spectate {cfg.username} {record.recorder_username}")
@@ -131,10 +131,10 @@ def run_competition(
             trace.ended_at = time.time()
             trace.timed_out = timed_out
             if setup_done:
-                console.log("Capturing competition final state...")
+                console.log("Capturing task final state...")
                 try:
                     with rcon_session(slot.host, slot.rcon_port, slot.rcon_password) as mcr:
-                        final_snapshot = competition.capture(mcr, cfg, setup_state)
+                        final_snapshot = task.capture(mcr, cfg, setup_state)
                         trace.final_state = final_snapshot["final_state"]
                 except Exception as e:
                     final_snapshot = {
@@ -166,7 +166,7 @@ def run_competition(
                         for line in recorder.stderr_log[-40:]:
                             console.log(f"  {line}")
 
-        report = competition.score(cfg, trace, final_snapshot or {})
+        report = task.score(cfg, trace, final_snapshot or {})
         (output / "trace.json").write_text(trace.model_dump_json(indent=2))
         (output / "score.json").write_text(json.dumps(report, indent=2))
         (output / "config.json").write_text(cfg.model_dump_json(indent=2))

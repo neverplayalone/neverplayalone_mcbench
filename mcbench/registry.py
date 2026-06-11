@@ -1,27 +1,27 @@
-"""Competition registry: maps a competition id to its Competition plugin.
+"""Task registry: maps a task id to its Task plugin.
 
-Adding a competition = implement a Competition under mcbench/competitions/ and
-register an instance here. The generic ``mcbench run --competition <id>`` CLI
+Adding a task = implement a Task under mcbench/tasks/ and
+register an instance here. The generic ``mcbench run --task <id>`` CLI
 needs no other change.
 """
 
 from __future__ import annotations
 
-from .competitions.resource_gathering import ResourceGatheringCompetition
-from .core.competition import Competition
+from .tasks.resource_gathering import ResourceGatheringTask
+from .core.task import Task
 
-_COMPETITIONS: list[Competition] = [
-    ResourceGatheringCompetition(),
+_TASKS: list[Task] = [
+    ResourceGatheringTask(),
 ]
 
-COMPETITIONS: dict[str, Competition] = {c.id: c for c in _COMPETITIONS}
+TASKS: dict[str, Task] = {c.id: c for c in _TASKS}
 
 
-def get_competition(competition_id: str) -> Competition:
+def get_task(task_id: str) -> Task:
     try:
-        return COMPETITIONS[competition_id]
+        return TASKS[task_id]
     except KeyError:
-        known = ", ".join(sorted(COMPETITIONS))
+        known = ", ".join(sorted(TASKS))
         raise ValueError(
-            f"unknown competition {competition_id!r}; known competitions: {known}"
+            f"unknown task {task_id!r}; known tasks: {known}"
         ) from None

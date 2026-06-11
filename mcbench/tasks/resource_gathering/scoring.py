@@ -7,10 +7,10 @@ import time
 from typing import Any
 
 from ...core.trace import Trace
-from .config import ResourceCompetitionConfig, ResourceTarget
+from .config import ResourceGatheringTaskConfig, ResourceTarget
 
 def score_resource_gathering(
-    cfg: ResourceCompetitionConfig,
+    cfg: ResourceGatheringTaskConfig,
     trace: Trace,
     snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -57,7 +57,7 @@ def score_resource_gathering(
     max_score = max_resource_score
 
     # Time efficiency is NOT part of the score — it is only a tie-breaker between
-    # miners that finish with the same score. Measured over the agent-active window
+    # agents that finish with the same score. Measured over the agent-active window
     # (spawn -> end) so boot/world-load never count against the agent. Only an agent
     # that actually reported `done` earns it; a crash or timeout sits at 0 so
     # "finishing fast" by dying can't win a tie.
@@ -75,7 +75,7 @@ def score_resource_gathering(
     # stamped on exactly that event, so it doubles as the spawned flag.
     spawned = trace.agent_ready_at is not None
     return {
-        "competition_id": cfg.id,
+        "task_id": cfg.id,
         "agent": trace.agent_name,
         "seed": cfg.seed,
         "score": total,

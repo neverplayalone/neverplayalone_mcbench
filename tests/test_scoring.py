@@ -3,30 +3,30 @@ from __future__ import annotations
 import time
 import unittest
 
-from mcbench.competitions.resource_gathering.config import (
-    CompetitionScoringConfig,
-    ResourceCompetitionConfig,
+from mcbench.tasks.resource_gathering.config import (
+    TaskScoringConfig,
+    ResourceGatheringTaskConfig,
     ResourceTarget,
 )
-from mcbench.competitions.resource_gathering.scoring import (
+from mcbench.tasks.resource_gathering.scoring import (
     _distance_multiplier,
     score_resource_gathering,
 )
-from mcbench.competitions.resource_gathering.world import _kit_item_stack
-from mcbench.core.competition import KitItem
-from mcbench.core.slot import CompetitionSlot, _random_rcon_password
+from mcbench.tasks.resource_gathering.world import _kit_item_stack
+from mcbench.core.task import KitItem
+from mcbench.core.slot import Slot, _random_rcon_password
 from mcbench.core.trace import FinalState, Trace, TraceEvent
 from mcbench.minecraft.world import _prepare_playable_spawn
 
 
-def _config(duration_seconds: int = 1200) -> ResourceCompetitionConfig:
-    return ResourceCompetitionConfig(
+def _config(duration_seconds: int = 1200) -> ResourceGatheringTaskConfig:
+    return ResourceGatheringTaskConfig(
         id="test_gather",
         duration_seconds=duration_seconds,
         resources=[
             ResourceTarget(item="oak_log", target_count=64, points=100),
         ],
-        scoring=CompetitionScoringConfig(),  # default band table
+        scoring=TaskScoringConfig(),  # default band table
     )
 
 
@@ -66,13 +66,13 @@ class RconPasswordTest(unittest.TestCase):
         self.assertGreaterEqual(len(pw), 32)
 
     def test_each_slot_gets_a_distinct_password(self) -> None:
-        a = CompetitionSlot(slot_id=0)
-        b = CompetitionSlot(slot_id=1)
+        a = Slot(slot_id=0)
+        b = Slot(slot_id=1)
         self.assertNotEqual(a.rcon_password, "mcbench")
         self.assertNotEqual(a.rcon_password, b.rcon_password)
 
     def test_slot_password_flows_into_server_config(self) -> None:
-        slot = CompetitionSlot(slot_id=2)
+        slot = Slot(slot_id=2)
         self.assertEqual(slot.server_config().rcon_password, slot.rcon_password)
 
 
@@ -97,7 +97,7 @@ class DistanceMultiplierTest(unittest.TestCase):
         self.assertEqual(_distance_multiplier(None, BANDS, FLOOR), 0.20)
 
 
-class CompetitionScoringTest(unittest.TestCase):
+class TaskScoringTest(unittest.TestCase):
     def test_resource_config_defaults_to_minecraft_1_21_11(self) -> None:
         cfg = _config()
 
@@ -106,7 +106,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_difficulty_defaults_to_peaceful(self) -> None:
         # Peaceful + no mob spawning keeps every slot's world identical.
-        self.assertEqual(ResourceCompetitionConfig().difficulty, "peaceful")
+        self.assertEqual(ResourceGatheringTaskConfig().difficulty, "peaceful")
 
     def test_kit_item_stack_defaults_to_plain_item_for_agent_compatibility(self) -> None:
         item = _kit_item_stack(KitItem(item="netherite_pickaxe"))
@@ -122,7 +122,7 @@ class CompetitionScoringTest(unittest.TestCase):
         )
 
     def test_target_count_scoring_caps_logical_resource_group(self) -> None:
-        cfg = ResourceCompetitionConfig(
+        cfg = ResourceGatheringTaskConfig(
             id="target_logs",
             duration_seconds=1200,
             resources=[
@@ -134,7 +134,7 @@ class CompetitionScoringTest(unittest.TestCase):
                 )
             ],
         )
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 3, "birch_log": 2}, health=20)
@@ -165,7 +165,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_score_is_resource_times_distance_multiplier_at_spawn(self) -> None:
         cfg = _config()
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 64}, health=20)
@@ -183,7 +183,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_distance_multiplier_reduces_score_when_far(self) -> None:
         cfg = _config()
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 64}, health=20)
@@ -199,7 +199,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_resources_never_zero_out_far_away(self) -> None:
         cfg = _config()
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 64}, health=20)
@@ -213,7 +213,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_partial_resources_scale(self) -> None:
         cfg = _config()
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 32}, health=20)
@@ -228,7 +228,7 @@ class CompetitionScoringTest(unittest.TestCase):
     def test_time_efficiency_is_tiebreaker_not_score(self) -> None:
         cfg = _config()
         # finished early with full resources, far from spawn
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 300)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 300)
         trace.ended_at = time.time()
         trace.final_state = FinalState(inventory={"oak_log": 64}, health=20)
         trace.append(TraceEvent(kind="done", data={}))
@@ -247,7 +247,7 @@ class CompetitionScoringTest(unittest.TestCase):
         cfg = _config()
         now = time.time()
         trace = Trace(
-            challenge_id=cfg.id, agent_name="agent", started_at=now - 100, agent_ready_at=now - 95
+            instance_id=cfg.id, agent_name="agent", started_at=now - 100, agent_ready_at=now - 95
         )
         trace.ended_at = now
         trace.timed_out = True
@@ -261,7 +261,7 @@ class CompetitionScoringTest(unittest.TestCase):
     def test_status_flags_agent_that_never_spawned(self) -> None:
         cfg = _config()
         # No agent_ready_at: the agent connected/crashed without reporting `ready`.
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 100)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 100)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={}, health=None)
@@ -274,7 +274,7 @@ class CompetitionScoringTest(unittest.TestCase):
 
     def test_time_efficiency_zero_when_timed_out(self) -> None:
         cfg = _config()
-        trace = Trace(challenge_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
+        trace = Trace(instance_id=cfg.id, agent_name="agent", started_at=time.time() - 1200)
         trace.ended_at = time.time()
         trace.timed_out = True
         trace.final_state = FinalState(inventory={"oak_log": 64}, health=20)
@@ -289,7 +289,7 @@ class CompetitionScoringTest(unittest.TestCase):
         cfg = _config(duration_seconds=200)
         now = time.time()
         trace = Trace(
-            challenge_id=cfg.id,
+            instance_id=cfg.id,
             agent_name="agent",
             started_at=now - 500,      # 400s of boot/load before the agent spawned
             agent_ready_at=now - 100,  # agent actually played for 100s
