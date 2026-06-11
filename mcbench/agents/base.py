@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Iterator
 
-from ..core.trace import TraceEvent
+from mcbench.core.trace import TraceEvent
 
 
 @dataclass

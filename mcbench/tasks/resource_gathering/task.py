@@ -8,12 +8,12 @@ from typing import Any
 import yaml
 from mcrcon import MCRcon
 
-from ...core.task import Task, RunConfig
-from ...core.trace import Trace
-from .instance import TaskInstance, generate_instance
-from .config import ResourceGatheringTaskConfig
-from .scoring import score_resource_gathering
-from .world import capture, configure_world, setup_agent
+from mcbench.core.task import Task, RunConfig
+from mcbench.core.trace import Trace
+from mcbench.tasks.resource_gathering.instance import TaskInstance, generate_instance
+from mcbench.tasks.resource_gathering.config import ResourceGatheringTaskConfig
+from mcbench.tasks.resource_gathering.scoring import score_resource_gathering
+from mcbench.tasks.resource_gathering.world import capture, configure_world, setup_agent
 
 _CONFIG_DIR = Path(__file__).resolve().parent / "configs"
 

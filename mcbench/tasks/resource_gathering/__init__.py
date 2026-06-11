@@ -1,5 +1,5 @@
 """Resource gathering — task v1."""
 
-from .task import ResourceGatheringTask
+from mcbench.tasks.resource_gathering.task import ResourceGatheringTask
 
 __all__ = ["ResourceGatheringTask"]

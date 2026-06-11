@@ -7,9 +7,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from ..paths import DOCKER_DIR
-from .task import RunConfig
-from .slot import Slot
+from mcbench.paths import DOCKER_DIR
+from mcbench.core.task import RunConfig
+from mcbench.core.slot import Slot
 
 # world_preset id provided by the datapack we write for single-biome worlds.
 SINGLE_BIOME_LEVEL_TYPE = "mcbench:single_biome"

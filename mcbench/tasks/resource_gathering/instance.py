@@ -6,7 +6,7 @@ import random
 
 from pydantic import BaseModel
 
-from .config import ResourceGatheringTaskConfig, ResourceTarget
+from mcbench.tasks.resource_gathering.config import ResourceGatheringTaskConfig, ResourceTarget
 
 
 class TaskInstance(BaseModel):
