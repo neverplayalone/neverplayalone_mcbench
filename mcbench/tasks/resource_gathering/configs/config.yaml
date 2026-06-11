@@ -40,8 +40,8 @@ scoring:
     - [2000, 0.30]
   distance_floor_mult: 0.20
 
-# Challenge catalog: the menu of tasks. The seed deterministically picks one
-# resource and a target count within its range to form the challenge.
+# Catalog: the menu of tasks. The seed deterministically picks one resource and a
+# target count within its range to form the task instance.
 catalog:
   resources:
     logs:

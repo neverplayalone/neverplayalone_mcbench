@@ -1,4 +1,4 @@
-"""CompetitionSlot: ports, container name, and data dir for one isolated run."""
+"""Slot: ports, container name, and data dir for one isolated run."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..minecraft.server import ServerConfig
-from ..paths import COMPETITION_RESULTS_DIR
+from ..paths import RESULTS_DIR
 
 def _random_rcon_password() -> str:
     """A fresh, unguessable RCON password per slot.
@@ -21,7 +21,7 @@ def _random_rcon_password() -> str:
 
 
 @dataclass(frozen=True)
-class CompetitionSlot:
+class Slot:
     """One isolated evaluation slot.
 
     Parallelism later is just multiple slots with different ids/ports/data dirs.
@@ -33,7 +33,7 @@ class CompetitionSlot:
     base_rcon_port: int = 25575
     rcon_password: str = field(default_factory=_random_rcon_password)
     container_prefix: str = "mcbench-resource"
-    data_root: Path = COMPETITION_RESULTS_DIR / "slots"
+    data_root: Path = RESULTS_DIR / "slots"
 
     @property
     def game_port(self) -> int:

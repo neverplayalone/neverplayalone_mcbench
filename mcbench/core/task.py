@@ -1,9 +1,9 @@
-"""The Competition plugin interface and the shared run configuration.
+"""The Task plugin interface and the shared run configuration.
 
-The engine in :mod:`mcbench.core` knows nothing about any specific competition
-(logs, crafting, hunting, ...). It drives whatever ``Competition`` it is given
-through the hooks below. Each competition lives under
-:mod:`mcbench.competitions` and supplies its own config schema, challenge
+The engine in :mod:`mcbench.core` knows nothing about any specific task
+(logs, crafting, hunting, ...). It drives whatever ``Task`` it is given
+through the hooks below. Each task lives under
+:mod:`mcbench.tasks` and supplies its own config schema, instance
 generation, world setup, capture, and scoring.
 """
 
@@ -20,7 +20,7 @@ USERNAME = "BenchmarkBot"
 
 
 class KitItem(BaseModel):
-    """One item handed to the competitor at setup. Shared across competitions."""
+    """One item handed to the agent at setup. Shared across tasks."""
 
     item: str
     count: int = 1
@@ -36,13 +36,13 @@ class KitItem(BaseModel):
 
 
 class RunConfig(BaseModel):
-    """Infra + world settings the engine needs, shared by every competition.
+    """Infra + world settings the engine needs, shared by every task.
 
-    Per-competition configs subclass this to add their own fields (kit, scoring,
+    Per-task configs subclass this to add their own fields (kit, scoring,
     targets, ...). The engine only ever reads the fields defined here.
     """
 
-    id: str = "competition"
+    id: str = "task"
     seed: int = 0
     minecraft_version: str = "1.21.11"
     world_type: str = "normal"
@@ -67,8 +67,8 @@ class RunConfig(BaseModel):
         return value
 
 
-class Competition(ABC):
-    """A competition type. The engine calls these hooks; everything Minecraft-,
+class Task(ABC):
+    """A task type. The engine calls these hooks; everything Minecraft-,
     Docker-, agent-, and recording-related is shared and never overridden."""
 
     id: str
@@ -79,18 +79,18 @@ class Competition(ABC):
 
     @abstractmethod
     def load_config(self, path: str | Path) -> RunConfig:
-        """Parse the config YAML into this competition's RunConfig subclass."""
+        """Parse the config YAML into this task's RunConfig subclass."""
 
     @abstractmethod
-    def generate_challenge(
+    def generate_instance(
         self,
         base_cfg: RunConfig,
         seed: int,
-        challenge_id: str | None = None,
+        instance_id: str | None = None,
     ) -> Any:
-        """Deterministically derive the frozen challenge from (config, seed).
+        """Deterministically derive the frozen instance from (config, seed).
 
-        The returned object must expose ``challenge_id`` (str), ``world_seed``
+        The returned object must expose ``instance_id`` (str), ``world_seed``
         (int), ``model_dump()``, and ``to_run_config(base_cfg) -> RunConfig``.
         """
 
@@ -100,8 +100,8 @@ class Competition(ABC):
         template build and on every slot."""
 
     @abstractmethod
-    def setup_competitor(self, mcr: MCRcon, cfg: RunConfig) -> Any:
-        """Apply kit, pin spawn, record baselines. Returns competition-defined
+    def setup_agent(self, mcr: MCRcon, cfg: RunConfig) -> Any:
+        """Apply kit, pin spawn, record baselines. Returns task-defined
         setup state passed back to :meth:`capture`."""
 
     @abstractmethod

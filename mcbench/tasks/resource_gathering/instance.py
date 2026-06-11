@@ -1,4 +1,4 @@
-"""The generated challenge and deterministic challenge generation."""
+"""The generated instance and deterministic instance generation."""
 
 from __future__ import annotations
 
@@ -6,13 +6,13 @@ import random
 
 from pydantic import BaseModel
 
-from .config import ResourceCompetitionConfig, ResourceTarget
+from .config import ResourceGatheringTaskConfig, ResourceTarget
 
 
-class GeneratedChallenge(BaseModel):
-    """The frozen task all miners in one batch receive."""
+class TaskInstance(BaseModel):
+    """The frozen task all agents in one batch receive."""
 
-    challenge_id: str
+    instance_id: str
     seed: int
     world_seed: int
     resource: str
@@ -28,13 +28,13 @@ class GeneratedChallenge(BaseModel):
     spawn_time: int
     biome: str | None = None
 
-    def to_run_config(self, base_cfg: ResourceCompetitionConfig) -> ResourceCompetitionConfig:
-        # Drop the catalog (the menu) from the per-run config: the challenge is
+    def to_run_config(self, base_cfg: ResourceGatheringTaskConfig) -> ResourceGatheringTaskConfig:
+        # Drop the catalog (the menu) from the per-run config: the instance is
         # already chosen, so the run only needs the single selected target.
         data = base_cfg.model_dump(exclude={"catalog"})
         data.update(
             {
-                "id": self.challenge_id,
+                "id": self.instance_id,
                 "seed": self.world_seed,
                 "minecraft_version": self.minecraft_version,
                 "world_type": self.world_type,
@@ -54,14 +54,14 @@ class GeneratedChallenge(BaseModel):
                 ],
             }
         )
-        return ResourceCompetitionConfig.model_validate(data)
+        return ResourceGatheringTaskConfig.model_validate(data)
 
 
-def generate_challenge(
-    base_cfg: ResourceCompetitionConfig,
+def generate_instance(
+    base_cfg: ResourceGatheringTaskConfig,
     seed: int,
-    challenge_id: str | None = None,
-) -> GeneratedChallenge:
+    instance_id: str | None = None,
+) -> TaskInstance:
     catalog = base_cfg.catalog
     if catalog is None:
         raise ValueError("resource-gathering config has no `catalog` section")
@@ -71,13 +71,13 @@ def generate_challenge(
     target_count = rng.randint(*entry.target_range)
     world_seed = rng.randint(-(2**31), 2**31 - 1)
     display_name = entry.display_name or resource.replace("_", " ")
-    challenge_id = challenge_id or f"resource_{seed}_{resource}_{target_count}"
+    instance_id = instance_id or f"resource_{seed}_{resource}_{target_count}"
     goal = (
         f"Before sunset, gather {target_count} {display_name}. "
         "Keep the items in your inventory and finish within 20 blocks of spawn."
     )
-    return GeneratedChallenge(
-        challenge_id=challenge_id,
+    return TaskInstance(
+        instance_id=instance_id,
         seed=seed,
         world_seed=world_seed,
         resource=resource,

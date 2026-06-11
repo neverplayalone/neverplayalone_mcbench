@@ -1,10 +1,10 @@
 # Never Play Alone MCBench
 
-Validator-oriented Minecraft resource-gathering benchmark for protocol agents.
+Harness-oriented Minecraft resource-gathering benchmark for protocol agents.
 
 The benchmark generates one shared resource challenge, builds one canonical
-world template, copies that world into isolated Docker slots, and runs one miner
-agent per slot. Each miner receives the same natural-language task, same world
+world template, copies that world into isolated Docker slots, and runs one agent
+agent per slot. Each agent receives the same natural-language task, same world
 state, same spawn state, and same time limit.
 
 ## Quick Start
@@ -23,13 +23,13 @@ mcbench run --competition resource_gathering_v1 \
 `mcbench resource-gather` is a shorthand alias for
 `mcbench run --competition resource_gathering_v1`.
 
-Multiple miners can be evaluated in parallel by repeating `--agent`:
+Multiple agents can be evaluated in parallel by repeating `--agent`:
 
 ```bash
 mcbench run --competition resource_gathering_v1 \
   --seed 42 \
-  --agent miner_a=/path/to/miner_a \
-  --agent miner_b=/path/to/miner_b \
+  --agent agent_a=/path/to/agent_a \
+  --agent agent_b=/path/to/agent_b \
   --record
 ```
 
@@ -41,7 +41,7 @@ settings (version, memory, duration, world_size, difficulty, kit, scoring) and
 the challenge `catalog` — the menu of tasks the seed picks from. The default
 starter kit intentionally uses unenchanted netherite tools, keeping
 Mineflayer/prismarine agents compatible with Minecraft 1.21 item metadata while
-still giving every miner strong baseline tools.
+still giving every agent strong baseline tools.
 
 The `catalog` section lists the selectable resources:
 
@@ -55,7 +55,7 @@ catalog:
       points: 100
 ```
 
-For each evaluation batch, the validator derives a deterministic generated
+For each evaluation batch, the harness derives a deterministic generated
 challenge from the catalog and seed. Example:
 
 ```json
@@ -66,8 +66,8 @@ challenge from the catalog and seed. Example:
 }
 ```
 
-Only resources in the miner's inventory at the end are counted. The score is the
-resource score scaled by a distance multiplier based on how close the miner ends
+Only resources in the agent's inventory at the end are counted. The score is the
+resource score scaled by a distance multiplier based on how close the agent ends
 to spawn:
 
 ```text
@@ -87,14 +87,14 @@ Batch outputs are written under `results/resource_gathering/batches/<challenge_i
 - `generated_challenge.json`
 - `batch_report.json`
 - `world_template/`
-- `miners/<miner>__slot<N>/score.json`
-- `miners/<miner>__slot<N>/trace.json`
-- `miners/<miner>__slot<N>/recording.mcpr` when `--record` is enabled
+- `agents/<agent>__slot<N>/score.json`
+- `agents/<agent>__slot<N>/trace.json`
+- `agents/<agent>__slot<N>/recording.mcpr` when `--record` is enabled
 
 ## Recording
 
 Recording uses a sidecar Mineflayer process that joins as `RecorderCam`,
-spectates the miner, captures the Minecraft protocol stream, and exports a
+spectates the agent, captures the Minecraft protocol stream, and exports a
 ReplayMod-compatible `.mcpr` file.
 
 To regenerate a ReplayMod file from a packet log:
@@ -127,6 +127,6 @@ mcbench/                   Python package
     resource_gathering/    v1 plugin: competition, config, challenge,
       configs/             scoring, world setup, + bundled config.yaml
 agents_examples/
-  log_gatherer/            Reference Mineflayer log-gathering miner
+  log_gatherer/            Reference Mineflayer log-gathering agent
 docker/                    Paper server config (bukkit.yml)
 ```

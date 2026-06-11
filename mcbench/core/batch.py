@@ -1,7 +1,7 @@
-"""Batch orchestration: one challenge, one world template, slots run in parallel.
+"""Batch orchestration: one instance, one world template, slots run in parallel.
 
-Competition-agnostic: the challenge, world configuration, and scoring all come
-from the :class:`Competition` carried on the batch.
+Task-agnostic: the instance, world configuration, and scoring all come
+from the :class:`Task` carried on the batch.
 """
 
 from __future__ import annotations
@@ -20,27 +20,27 @@ from rich.console import Console
 from ..agents import AgentSpec, SubprocessAgent
 from ..minecraft.rcon import rcon_session
 from ..minecraft.server import wait_for_ready
-from ..paths import COMPETITION_RESULTS_DIR
+from ..paths import RESULTS_DIR
 from ..recording.recorder import RecordOptions
-from .competition import Competition, RunConfig
+from .task import Task, RunConfig
 from .container import _start_slot, _stop_slot
-from .runner import run_competition
-from .slot import CompetitionSlot
+from .runner import run_task
+from .slot import Slot
 
 console = Console()
 
 
 @dataclass(frozen=True)
 class EvaluationSlot:
-    slot: CompetitionSlot
+    slot: Slot
     agent_spec: AgentSpec
     result_dir: Path
 
 
 @dataclass(frozen=True)
 class EvaluationBatch:
-    competition: Competition
-    challenge: Any
+    task: Task
+    instance: Any
     base_config: RunConfig
     agents: list[AgentSpec]
     slots: list[EvaluationSlot]
@@ -51,10 +51,10 @@ class EvaluationBatch:
 class WorldTemplateBuilder:
     """Create one canonical server data directory for a batch."""
 
-    def __init__(self, slot: CompetitionSlot):
+    def __init__(self, slot: Slot):
         self.slot = slot
 
-    def build(self, competition: Competition, cfg: RunConfig, output_dir: Path) -> Path:
+    def build(self, task: Task, cfg: RunConfig, output_dir: Path) -> Path:
         output_dir = output_dir.resolve()
         shutil.rmtree(output_dir, ignore_errors=True)
         output_dir.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +68,7 @@ class WorldTemplateBuilder:
             with rcon_session(
                 server.host, server.rcon_port, server.rcon_password, socket_timeout=20
             ) as mcr:
-                competition.configure_world(mcr, cfg)
+                task.configure_world(mcr, cfg)
                 mcr.command("save-all flush")
         finally:
             _stop_slot(self.slot, quiet=True)
@@ -77,7 +77,7 @@ class WorldTemplateBuilder:
 
 
 class ParallelEvaluator:
-    """Run all miner slots for one batch and write an aggregate report."""
+    """Run all agent slots for one batch and write an aggregate report."""
 
     def __init__(self, batch: EvaluationBatch, record: bool = False):
         self.batch = batch
@@ -85,9 +85,9 @@ class ParallelEvaluator:
 
     def run(self) -> dict[str, Any]:
         self.batch.output_dir.mkdir(parents=True, exist_ok=True)
-        challenge_path = self.batch.output_dir / "generated_challenge.json"
-        challenge_path.write_text(self.batch.challenge.model_dump_json(indent=2))
-        cfg = self.batch.challenge.to_run_config(self.batch.base_config)
+        instance_path = self.batch.output_dir / "generated_instance.json"
+        instance_path.write_text(self.batch.instance.model_dump_json(indent=2))
+        cfg = self.batch.instance.to_run_config(self.batch.base_config)
         results: list[dict[str, Any]] = []
         started_at = time.time()
 
@@ -105,7 +105,7 @@ class ParallelEvaluator:
                 except Exception as e:
                     results.append(
                         {
-                            "miner": slot.agent_spec.name,
+                            "agent": slot.agent_spec.name,
                             "slot": slot.slot.slot_id,
                             "score": 0.0,
                             "error": str(e),
@@ -113,10 +113,10 @@ class ParallelEvaluator:
                     )
 
         report = {
-            "challenge": self.batch.challenge.model_dump(),
+            "instance": self.batch.instance.model_dump(),
             "started_at": started_at,
             "ended_at": time.time(),
-            "results": sorted(results, key=lambda r: str(r.get("miner"))),
+            "results": sorted(results, key=lambda r: str(r.get("agent"))),
         }
         (self.batch.output_dir / "batch_report.json").write_text(
             json.dumps(report, indent=2)
@@ -126,8 +126,8 @@ class ParallelEvaluator:
     def _run_slot(self, cfg: RunConfig, slot: EvaluationSlot) -> dict[str, Any]:
         agent = SubprocessAgent(slot.agent_spec)
         record = RecordOptions(target_username=cfg.username) if self.record else None
-        report = run_competition(
-            self.batch.competition,
+        report = run_task(
+            self.batch.task,
             cfg,
             agent,
             slot=slot.slot,
@@ -136,7 +136,7 @@ class ParallelEvaluator:
             world_template=self.batch.world_template_dir,
         )
         return {
-            "miner": slot.agent_spec.name,
+            "agent": slot.agent_spec.name,
             "slot": slot.slot.slot_id,
             "result_dir": str(slot.result_dir),
             **report,
@@ -145,40 +145,40 @@ class ParallelEvaluator:
 
 def create_evaluation_batch(
     *,
-    competition: Competition,
+    task: Task,
     base_cfg: RunConfig,
     agents: list[AgentSpec],
     seed: int,
     output_dir: Path | None = None,
-    challenge_id: str | None = None,
+    instance_id: str | None = None,
     base_game_port: int = 25665,
     base_rcon_port: int = 25675,
 ) -> EvaluationBatch:
     if not agents:
         raise ValueError("evaluation batch requires at least one agent")
-    challenge = competition.generate_challenge(base_cfg, seed, challenge_id=challenge_id)
+    instance = task.generate_instance(base_cfg, seed, instance_id=instance_id)
     output = (
         output_dir
         if output_dir is not None
-        else COMPETITION_RESULTS_DIR / "batches" / challenge.challenge_id
+        else RESULTS_DIR / "batches" / instance.instance_id
     ).resolve()
     world_template = output / "world_template"
     slots = [
         EvaluationSlot(
-            slot=CompetitionSlot(
+            slot=Slot(
                 slot_id=i,
                 base_game_port=base_game_port,
                 base_rcon_port=base_rcon_port,
                 data_root=output / "slots",
             ),
             agent_spec=agent,
-            result_dir=output / "miners" / f"{_safe_name(agent.name)}__slot{i}",
+            result_dir=output / "agents" / f"{_safe_name(agent.name)}__slot{i}",
         )
         for i, agent in enumerate(agents)
     ]
     return EvaluationBatch(
-        competition=competition,
-        challenge=challenge,
+        task=task,
+        instance=instance,
         base_config=base_cfg,
         agents=agents,
         slots=slots,
@@ -190,16 +190,16 @@ def create_evaluation_batch(
 def run_evaluation_batch(
     batch: EvaluationBatch, record: bool = False, keep_slots: bool = False
 ) -> dict[str, Any]:
-    cfg = batch.challenge.to_run_config(batch.base_config)
+    cfg = batch.instance.to_run_config(batch.base_config)
     batch.output_dir.mkdir(parents=True, exist_ok=True)
-    template_slot = CompetitionSlot(
+    template_slot = Slot(
         slot_id=999,
         base_game_port=batch.slots[0].slot.base_game_port,
         base_rcon_port=batch.slots[0].slot.base_rcon_port,
         container_prefix="mcbench-template",
         data_root=batch.output_dir / "template_slot",
     )
-    WorldTemplateBuilder(template_slot).build(batch.competition, cfg, batch.world_template_dir)
+    WorldTemplateBuilder(template_slot).build(batch.task, cfg, batch.world_template_dir)
     try:
         return ParallelEvaluator(batch, record=record).run()
     finally:
@@ -242,4 +242,4 @@ def parse_agent_assignment(raw: str) -> AgentSpec:
 
 
 def _safe_name(value: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "miner"
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("_") or "agent"
