@@ -51,7 +51,7 @@ def _run_batch(
     out_dir: Path | None,
     record: bool,
     keep_slots: bool,
-    agent_mode: str,
+    normal: bool,
 ) -> None:
     from mcbench.core import create_evaluation_batch, parse_agent_assignment, run_evaluation_batch
     from mcbench.registry import get_task
@@ -75,7 +75,11 @@ def _run_batch(
             base_rcon_port=base_rcon_port,
         )
         report = run_evaluation_batch(
-            batch, record=record, keep_slots=keep_slots, agent_mode=agent_mode
+            batch,
+            record=record,
+            keep_slots=keep_slots,
+            # Docker sandbox by default; --normal opts back into host subprocess.
+            agent_mode="subprocess" if normal else "docker",
         )
     except (ValueError, RuntimeError) as e:
         raise click.ClickException(str(e)) from e
@@ -103,13 +107,6 @@ def _batch_options(func):
             default=None,
             help="Run config (default: the task's bundled config.yaml).",
         ),
-        click.option(
-            "--agent",
-            "agent_assignments",
-            multiple=True,
-            required=True,
-            help="Agent assignment as NAME=PATH or PATH. Repeat once per agent.",
-        ),
         click.option("--seed", type=int, required=True, help="Deterministic instance seed."),
         click.option("--instance-id", default=None, help="Optional explicit instance id."),
         click.option("--base-game-port", type=int, default=25665),
@@ -128,12 +125,11 @@ def _batch_options(func):
             "scores, traces, recordings, and world_template are kept).",
         ),
         click.option(
-            "--agent-mode",
-            type=click.Choice(["subprocess", "docker"]),
-            default="subprocess",
-            show_default=True,
-            help="How to run agent code: 'subprocess' on the host (trusted, fast) "
-            "or 'docker' in a sandboxed container (untrusted/submitted code).",
+            "--normal",
+            is_flag=True,
+            default=False,
+            help="Run agents as host subprocesses (no sandbox). Default: each "
+            "agent runs in an isolated Docker container.",
         ),
     ]
     for option in reversed(options):
@@ -142,6 +138,7 @@ def _batch_options(func):
 
 
 @main.command("run")
+@click.argument("agents", nargs=-1, required=True)
 @click.option(
     "--task",
     "task_id",
@@ -150,21 +147,26 @@ def _batch_options(func):
     help="Task id to run (see the registry).",
 )
 @_batch_options
-def run_cmd(task_id: str, **kwargs) -> None:
-    """Run one generated instance for the chosen task across agent slots."""
-    _run_batch(task_id=task_id, **kwargs)
+def run_cmd(task_id: str, agents: tuple[str, ...], **kwargs) -> None:
+    """Run one generated instance for a task across one or more agents.
+
+    AGENTS are agent paths (or NAME=PATH); each runs in its own slot. Agents run
+    sandboxed in Docker by default; pass --normal to run them as host subprocesses.
+    """
+    _run_batch(task_id=task_id, agent_assignments=agents, **kwargs)
 
 
 @main.command("resource-gather")
+@click.argument("agents", nargs=-1, required=True)
 @_batch_options
-def resource_gather_cmd(**kwargs) -> None:
+def resource_gather_cmd(agents: tuple[str, ...], **kwargs) -> None:
     """Alias for `run --task resource_gathering_v1`."""
-    _run_batch(task_id="resource_gathering_v1", **kwargs)
+    _run_batch(task_id="resource_gathering_v1", agent_assignments=agents, **kwargs)
 
 
 @main.command("build-agent-image")
 def build_agent_image_cmd() -> None:
-    """Build the sandbox runtime image used by `--agent-mode docker`."""
+    """Build the sandbox runtime image used by Docker agent mode (the default)."""
     from mcbench.agents import ensure_agent_image
 
     try:

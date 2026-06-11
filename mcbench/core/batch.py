@@ -109,7 +109,7 @@ class ParallelEvaluator:
         self,
         batch: EvaluationBatch,
         record: bool = False,
-        agent_mode: str = "subprocess",
+        agent_mode: str = "docker",
     ):
         self.batch = batch
         self.record = record
@@ -235,7 +235,7 @@ def run_evaluation_batch(
     batch: EvaluationBatch,
     record: bool = False,
     keep_slots: bool = False,
-    agent_mode: str = "subprocess",
+    agent_mode: str = "docker",
 ) -> dict[str, Any]:
     cfg = batch.instance.to_run_config(batch.base_config)
     batch.output_dir.mkdir(parents=True, exist_ok=True)
