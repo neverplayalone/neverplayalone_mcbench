@@ -141,7 +141,16 @@ def _start_slot(
         f"SEED={cfg.seed}",
         "itzg/minecraft-server:latest",
     ]
-    _run(cmd, f"starting task slot {slot.slot_id}")
+    try:
+        _ensure_slot_network(slot)
+        _run(cmd, f"starting task slot {slot.slot_id}")
+        _run(
+            ["docker", "network", "connect", slot.network_name, slot.container_name],
+            f"connecting task slot {slot.slot_id} to dedicated network",
+        )
+    except Exception:
+        _stop_slot(slot, quiet=True)
+        raise
 
 
 def _stop_slot(slot: Slot, quiet: bool = False) -> None:
@@ -151,11 +160,41 @@ def _stop_slot(slot: Slot, quiet: bool = False) -> None:
         capture_output=True,
         text=True,
     )
-    if result.returncode != 0 and not quiet and "No such container" not in result.stderr:
+    if result.returncode != 0 and not quiet and not _docker_resource_missing(result.stderr):
         raise RuntimeError(
             f"docker rm -f {slot.container_name} failed\n"
             f"--- stderr ---\n{result.stderr}\n--- stdout ---\n{result.stdout}"
         )
+    network_result = subprocess.run(
+        ["docker", "network", "rm", slot.network_name],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if (
+        network_result.returncode != 0
+        and not quiet
+        and not _docker_resource_missing(network_result.stderr)
+    ):
+        raise RuntimeError(
+            f"docker network rm {slot.network_name} failed\n"
+            f"--- stderr ---\n{network_result.stderr}\n--- stdout ---\n{network_result.stdout}"
+        )
+
+
+def _ensure_slot_network(slot: Slot) -> None:
+    result = subprocess.run(
+        ["docker", "network", "inspect", slot.network_name],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return
+    _run(
+        ["docker", "network", "create", "--internal", slot.network_name],
+        f"creating dedicated network for slot {slot.slot_id}",
+    )
 
 
 def _run(cmd: list[str], label: str) -> subprocess.CompletedProcess[str]:
@@ -169,3 +208,6 @@ def _run(cmd: list[str], label: str) -> subprocess.CompletedProcess[str]:
     return result
 
 
+def _docker_resource_missing(stderr: str) -> bool:
+    message = stderr.lower()
+    return "no such" in message or "not found" in message

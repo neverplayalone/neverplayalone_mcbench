@@ -16,13 +16,12 @@ import os
 import signal
 import subprocess
 import threading
-import time
 from pathlib import Path
-from queue import Empty, Queue
 from typing import Iterator
 
-from mcbench.core.trace import TraceEvent, parse_event_line
+from mcbench.core.trace import TraceEvent
 from mcbench.agents.base import Agent, AgentRunContext
+from mcbench.agents._process_stream import pump_events
 
 
 def _detect_launch(path: Path) -> list[str]:
@@ -69,40 +68,7 @@ class SubprocessAgent(Agent):
         )
         self._stderr_thread.start()
 
-        queue: Queue[str] = Queue()
-        threading.Thread(
-            target=self._drain_stdout, args=(queue,), daemon=True
-        ).start()
-
-        deadline = time.monotonic() + ctx.timeout_seconds
-        while True:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                # End the run but leave the process alive: the caller captures the
-                # final world state (inventory, position) over RCON while the bot is
-                # still connected, then calls stop(). Killing here would disconnect
-                # the player first, so the capture would read an absent entity.
-                yield TraceEvent(kind="info", data={"msg": "timeout"})
-                return
-            if self.proc.poll() is not None and queue.empty():
-                if self.proc.returncode:
-                    yield TraceEvent(
-                        kind="error",
-                        data={
-                            "msg": f"agent exited with code {self.proc.returncode}",
-                            "stderr": self.stderr_log[-20:],
-                        },
-                    )
-                return
-            try:
-                line = queue.get(timeout=min(0.5, remaining))
-            except Empty:
-                continue
-            event = parse_event_line(line)
-            if event is not None:
-                yield event
-            else:
-                yield TraceEvent(kind="info", data={"msg": "stdout", "line": line.strip()})
+        yield from pump_events(self.proc, ctx.timeout_seconds, lambda: self.stderr_log)
 
     def stop(self) -> None:
         if not self.proc:
@@ -118,11 +84,6 @@ class SubprocessAgent(Agent):
     @property
     def stderr_log(self) -> list[str]:
         return list(self._stderr_lines)
-
-    def _drain_stdout(self, queue: Queue[str]) -> None:
-        assert self.proc and self.proc.stdout
-        for line in self.proc.stdout:
-            queue.put(line)
 
     def _drain_stderr(self) -> None:
         assert self.proc and self.proc.stderr

@@ -2,10 +2,10 @@
 
 Harness-oriented Minecraft resource-gathering benchmark for protocol agents.
 
-The benchmark generates one shared resource challenge, builds one canonical
-world template, copies that world into isolated Docker slots, and runs one agent
-agent per slot. Each agent receives the same natural-language task, same world
-state, same spawn state, and same time limit.
+The benchmark generates one shared resource-gathering task instance, builds one
+canonical world template, copies that world into isolated Docker slots, and runs
+one agent per slot. Each agent receives the same natural-language task, same
+world state, same spawn state, and same time limit.
 
 ## Quick Start
 
@@ -14,31 +14,34 @@ pip install -e .
 (cd mcbench/recording/sidecar && npm install)
 (cd agents_examples/log_gatherer && npm install)
 
-mcbench run --competition resource_gathering_v1 \
+mcbench run log_gatherer=agents_examples/log_gatherer \
+  --task resource_gathering_v1 \
   --seed 42 \
-  --agent log_gatherer=agents_examples/log_gatherer \
   --record
 ```
 
 `mcbench resource-gather` is a shorthand alias for
-`mcbench run --competition resource_gathering_v1`.
+`mcbench run --task resource_gathering_v1`.
 
-Multiple agents can be evaluated in parallel by repeating `--agent`:
+Multiple agents can be evaluated in parallel by passing multiple positional
+agent assignments:
 
 ```bash
-mcbench run --competition resource_gathering_v1 \
+mcbench run agent_a=/path/to/agent_a agent_b=/path/to/agent_b \
+  --task resource_gathering_v1 \
   --seed 42 \
-  --agent agent_a=/path/to/agent_a \
-  --agent agent_b=/path/to/agent_b \
   --record
 ```
 
-## Challenge Model
+Agents run in sandboxed Docker containers by default. Use `--normal` only for
+trusted local development, where agents run directly as host subprocesses.
 
-Each competition bundles a single config file with its code at
-`mcbench/competitions/<competition>/configs/config.yaml`. It holds the run
-settings (version, memory, duration, world_size, difficulty, kit, scoring) and
-the challenge `catalog` — the menu of tasks the seed picks from. The default
+## Task Instance Model
+
+Each task bundles a single config file with its code at
+`mcbench/tasks/<task>/configs/config.yaml`. It holds the run settings (version,
+memory, duration, world_size, difficulty, kit, scoring) and the instance
+`catalog` — the menu of resource targets the seed picks from. The default
 starter kit intentionally uses unenchanted netherite tools, keeping
 Mineflayer/prismarine agents compatible with Minecraft 1.21 item metadata while
 still giving every agent strong baseline tools.
@@ -55,8 +58,8 @@ catalog:
       points: 100
 ```
 
-For each evaluation batch, the harness derives a deterministic generated
-challenge from the catalog and seed. Example:
+For each evaluation batch, the harness derives one deterministic generated
+instance from the catalog and seed. Example:
 
 ```json
 {
@@ -82,9 +85,9 @@ ties between equal scores.
 
 ## Outputs
 
-Batch outputs are written under `results/resource_gathering/batches/<challenge_id>/`:
+Batch outputs are written under `results/resource_gathering/batches/<instance_id>/`:
 
-- `generated_challenge.json`
+- `generated_instance.json`
 - `batch_report.json`
 - `world_template/`
 - `agents/<agent>__slot<N>/score.json`
@@ -106,27 +109,27 @@ mcbench replay export-mcpr results/<run_id>/packets.jsonl.gz
 ## Repository Layout
 
 The package is split into a generic engine (`core/`) and one self-contained
-plugin per competition (`competitions/<name>/`). Adding a competition = drop in
-a new folder implementing `Competition`; the engine needs no changes.
+plugin per task (`tasks/<name>/`). Adding a task means adding a folder that
+implements `Task`; the engine needs no changes.
 
 ```text
 mcbench/                   Python package
-  cli.py                   CLI (run --competition <id>, replay)
-  registry.py              Competition registry (id -> Competition)
+  cli.py                   CLI (run --task <id>, replay)
+  registry.py              Task registry (id -> Task)
   paths.py                 Filesystem locations
-  core/                    Generic engine (competition-agnostic)
-    competition.py         Competition ABC + shared RunConfig / KitItem
-    runner.py              Single-slot run loop (drives a Competition)
+  core/                    Generic engine (task-agnostic)
+    task.py                Task ABC + shared RunConfig / KitItem
+    runner.py              Single-slot run loop (drives a Task)
     batch.py               World template + parallel slots
     slot.py  container.py  Slot definition / Docker container lifecycle
     trace.py               Trace + final-state models
   minecraft/               Server interaction (rcon, server, world, commands)
   recording/               Recorder wrapper, ReplayMod export, Node sidecar/
-  agents/                  Agent subprocess adapter
-  competitions/
-    resource_gathering/    v1 plugin: competition, config, challenge,
-      configs/             scoring, world setup, + bundled config.yaml
+  agents/                  Agent execution adapters
+  tasks/
+    resource_gathering/    v1 task: config, instance generation, scoring,
+      configs/             world setup, + bundled config.yaml
 agents_examples/
   log_gatherer/            Reference Mineflayer log-gathering agent
-docker/                    Paper server config (bukkit.yml)
+docker/                    Paper server config + Docker agent runtime
 ```

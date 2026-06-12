@@ -48,6 +48,10 @@ class Slot:
         return f"{self.container_prefix}-{self.slot_id}"
 
     @property
+    def network_name(self) -> str:
+        return f"{self.container_name}-net"
+
+    @property
     def data_dir(self) -> Path:
         return self.data_root / f"slot-{self.slot_id}" / "data"
 
@@ -58,5 +62,4 @@ class Slot:
             rcon_port=self.rcon_port,
             rcon_password=self.rcon_password,
         )
-
 
