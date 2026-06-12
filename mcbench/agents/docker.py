@@ -46,8 +46,10 @@ DEFAULT_PIDS_LIMIT = 256
 
 def agent_image_tag() -> str:
     """Image tag derived from the runtime recipe, so dep changes rebuild it."""
-    recipe = (AGENT_IMAGE_DIR / "package.json").read_bytes()
-    recipe += (AGENT_IMAGE_DIR / "Dockerfile").read_bytes()
+    recipe = b"".join(
+        (AGENT_IMAGE_DIR / filename).read_bytes()
+        for filename in ("package.json", "package-lock.json", "Dockerfile")
+    )
     digest = hashlib.sha256(recipe).hexdigest()[:12]
     return f"{AGENT_IMAGE_REPO}:{digest}"
 

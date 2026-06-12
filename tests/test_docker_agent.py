@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import mcbench.agents.docker as docker_agent
 from mcbench.agents import DockerAgent, SubprocessAgent
 from mcbench.agents.base import AgentRunContext, AgentSpec
 from mcbench.agents.docker import agent_image_tag
@@ -28,6 +29,22 @@ class AgentImageTagTest(unittest.TestCase):
         tag = agent_image_tag()
         self.assertTrue(tag.startswith("mcbench-agent-runtime:"))
         self.assertEqual(tag, agent_image_tag())  # deterministic
+
+    def test_tag_changes_when_lockfile_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            image_dir = Path(tmp)
+            (image_dir / "package.json").write_text('{"dependencies":{}}\n')
+            (image_dir / "package-lock.json").write_text('{"lockfileVersion":3}\n')
+            (image_dir / "Dockerfile").write_text("FROM node:20-bookworm-slim\n")
+
+            with patch.object(docker_agent, "AGENT_IMAGE_DIR", image_dir):
+                first = docker_agent.agent_image_tag()
+                (image_dir / "package-lock.json").write_text(
+                    '{"lockfileVersion":3,"packages":{"node_modules/example":{}}}\n'
+                )
+                second = docker_agent.agent_image_tag()
+
+        self.assertNotEqual(first, second)
 
 
 class DockerRunCommandTest(unittest.TestCase):
