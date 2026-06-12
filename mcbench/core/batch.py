@@ -49,7 +49,11 @@ def make_agent(
 
     if mode == "docker":
         return DockerAgent(
-            spec, container_name=f"mcbench-agent-{slot.slot_id}", image=image
+            spec,
+            container_name=f"mcbench-agent-{slot.slot_id}",
+            network_name=slot.network_name,
+            server_host=slot.container_name,
+            image=image,
         )
     if mode == "subprocess":
         return SubprocessAgent(spec)

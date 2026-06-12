@@ -9,9 +9,9 @@ agent is run inside a container built from ``docker/agent`` with:
   * dependencies resolved from the image's baked ``node_modules`` via NODE_PATH,
   * a dropped capability set, no new privileges, a non-root user, a read-only
     rootfs (writable ``/tmp`` only), and pid/memory caps,
-  * the Minecraft server reached over ``host.docker.internal`` (the published
-    game port). RCON is published on loopback only, so it stays unreachable from
-    the container, and is password-protected besides.
+  * the Minecraft server reached by container name on a dedicated per-slot
+    Docker network. RCON is still published only on loopback for the harness and
+    protected by a per-slot random password.
 
 ``docker run`` is itself a child process whose stdout is the agent's stdout, so
 the streaming/timeout loop is shared with the subprocess path.
@@ -36,9 +36,7 @@ console = Console()
 
 AGENT_IMAGE_DIR = DOCKER_DIR / "agent"
 AGENT_IMAGE_REPO = "mcbench-agent-runtime"
-# Address that resolves to the host from inside the container (Docker maps it via
-# the host-gateway add-host below), used to reach the server's published port.
-HOST_GATEWAY = "host.docker.internal"
+SERVER_CONTAINER_PORT = 25565
 
 # Container-side sandbox defaults. The agent never needs much; these cap a
 # runaway or hostile agent without affecting a well-behaved one.
@@ -86,12 +84,18 @@ class DockerAgent(Agent):
         spec,
         *,
         container_name: str,
+        network_name: str,
+        server_host: str,
+        server_port: int = SERVER_CONTAINER_PORT,
         image: str | None = None,
         memory: str = DEFAULT_MEMORY,
         pids_limit: int = DEFAULT_PIDS_LIMIT,
     ):
         super().__init__(spec)
         self.container_name = container_name
+        self.network_name = network_name
+        self.server_host = server_host
+        self.server_port = server_port
         self.image = image  # resolved lazily in run() if None
         self.memory = memory
         self.pids_limit = pids_limit
@@ -129,13 +133,13 @@ class DockerAgent(Agent):
             f"{agent_dir}:/agent:ro",
             "-w",
             "/agent",
-            # --- reach the server's published port via the host gateway ---
-            "--add-host",
-            f"{HOST_GATEWAY}:host-gateway",
+            # --- reach only the slot server over the dedicated Docker network ---
+            "--network",
+            self.network_name,
             "-e",
-            f"MCBENCH_HOST={HOST_GATEWAY}",
+            f"MCBENCH_HOST={self.server_host}",
             "-e",
-            f"MCBENCH_PORT={ctx.port}",
+            f"MCBENCH_PORT={self.server_port}",
             "-e",
             f"MCBENCH_USERNAME={ctx.username}",
             "-e",
