@@ -29,6 +29,7 @@ mcbench = "mcbench.cli:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["mcbench*"]
+exclude = ["mcbench.recording.sidecar*"]
 
 [tool.setuptools.package-data]
 "mcbench.tasks.resource_gathering" = ["configs/*.yaml"]
