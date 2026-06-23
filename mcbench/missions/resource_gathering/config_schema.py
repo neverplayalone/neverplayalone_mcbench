@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from mcbench.missions.base import MissionConfig, StartingItem
@@ -8,8 +10,10 @@ from mcbench.missions.base import MissionConfig, StartingItem
 class ResourceSpec(BaseModel):
     item: str
     items: list[str] = Field(default_factory=list)
+    display_name: str | None = None
     target_count: int
     points: float = 100.0
+    role: Literal["essential", "optional"] = "optional"
 
     @field_validator("target_count")
     @classmethod

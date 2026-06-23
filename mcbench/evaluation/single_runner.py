@@ -98,6 +98,7 @@ def run_single_evaluation(
                 recorder=recorder,
                 agent_run_trace=agent_run_trace,
                 phase=phase,
+                task_seed=task_seed,
             )
         finally:
             agent_run_trace.ended_at = time.time()
@@ -228,8 +229,9 @@ def _run_agent_protocol(
     recorder: Recorder | None,
     agent_run_trace: AgentRunTrace,
     phase: _AgentPhaseState,
+    task_seed: int | None,
 ) -> None:
-    context = _agent_context(mission, mission_config, server_endpoint)
+    context = _agent_context(mission, mission_config, server_endpoint, task_seed=task_seed)
     for event in agent.run(context):
         agent_run_trace.append(event)
         if event.kind == "info" and event.data.get("msg") == "timeout":
@@ -251,6 +253,8 @@ def _agent_context(
     mission: Mission,
     mission_config: MissionConfig,
     server_endpoint: ServerEndpoint,
+    *,
+    task_seed: int | None,
 ) -> AgentRunContext:
     return AgentRunContext(
         host=server_endpoint.host,

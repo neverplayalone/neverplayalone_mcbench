@@ -64,10 +64,11 @@ def evaluate_single_agent(
     mission = get_mission(mission_id)
     base_config = _load_mission_config(mission, config_path)
     task = mission.generate_task(base_config, seed)
-    mission_config = mission.build_mission_config(base_config, task)
     run_agent = _normalize_agent(agent)
     root_output_dir = (output_dir or RESULTS_DIR / mission_id / task.task_id).resolve()
     root_output_dir.mkdir(parents=True, exist_ok=True)
+    task = mission.materialize_task(base_config, task, root_output_dir)
+    mission_config = mission.build_mission_config(base_config, task)
     (root_output_dir / "task.json").write_text(task.model_dump_json(indent=2))
     reference_world_dir = ReferenceWorldBuilder().build(
         mission,
@@ -114,11 +115,12 @@ def evaluate_multiple_agents(
     mission = get_mission(mission_id)
     base_config = _load_mission_config(mission, config_path)
     task = mission.generate_task(base_config, seed)
-    mission_config = mission.build_mission_config(base_config, task)
     normalized_agents = [_normalize_agent(agent) for agent in agents]
     _assert_unique_agent_names(normalized_agents)
     root_output_dir = (output_dir or RESULTS_DIR / mission_id / task.task_id).resolve()
     root_output_dir.mkdir(parents=True, exist_ok=True)
+    task = mission.materialize_task(base_config, task, root_output_dir)
+    mission_config = mission.build_mission_config(base_config, task)
     (root_output_dir / "task.json").write_text(task.model_dump_json(indent=2))
     reference_world_dir = ReferenceWorldBuilder().build(
         mission,

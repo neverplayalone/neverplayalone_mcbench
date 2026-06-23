@@ -16,6 +16,8 @@ starting_items:
     count: 1
   - item: netherite_shovel
     count: 1
+  - item: shears
+    count: 1
   - item: cooked_beef
     count: 64
   - item: torch
@@ -39,7 +41,6 @@ menu:
   resources:
     logs:
       display_name: logs
-      biome: minecraft:forest
       items:
         - oak_log
         - birch_log
@@ -49,27 +50,197 @@ menu:
         - dark_oak_log
         - mangrove_log
         - cherry_log
-      target_range: [100, 150]
-      points: 100
+      target_range: [20, 36]
 
     cobblestone:
       display_name: cobblestone
       items:
         - cobblestone
-      target_range: [50, 100]
-      points: 100
+      target_range: [20, 36]
 
-    coal:
-      display_name: coal
+    raw_meat:
+      display_name: raw meat
       items:
-        - coal
-      target_range: [8, 64]
-      points: 100
+        - beef
+        - porkchop
+        - mutton
+        - chicken
+        - rabbit
+      target_range: [7, 15]
 
     sand:
       display_name: sand
       items:
         - sand
         - red_sand
-      target_range: [50, 100]
-      points: 100
+      target_range: [16, 32]
+
+    dirt:
+      display_name: dirt
+      items:
+        - dirt
+      target_range: [16, 32]
+
+    sugar_cane:
+      display_name: sugar cane
+      items:
+        - sugar_cane
+      target_range: [12, 24]
+
+    wool:
+      display_name: wool
+      items:
+        - white_wool
+        - orange_wool
+        - magenta_wool
+        - light_blue_wool
+        - yellow_wool
+        - lime_wool
+        - pink_wool
+        - gray_wool
+        - light_gray_wool
+        - cyan_wool
+        - purple_wool
+        - blue_wool
+        - brown_wool
+        - green_wool
+        - red_wool
+        - black_wool
+      target_range: [2, 6]
+
+    gravel:
+      display_name: gravel
+      items:
+        - gravel
+      target_range: [16, 32]
+
+    clay:
+      display_name: clay
+      items:
+        - clay_ball
+      target_range: [4, 12]
+
+    leather:
+      display_name: leather
+      items:
+        - leather
+      target_range: [2, 5]
+
+    feather:
+      display_name: feather
+      items:
+        - feather
+      target_range: [3, 8]
+
+    apple:
+      display_name: apple
+      items:
+        - apple
+      target_range: [1, 3]
+
+    pumpkin:
+      display_name: pumpkin
+      items:
+        - pumpkin
+      target_range: [2, 5]
+
+    melon:
+      display_name: melon
+      items:
+        - melon_slice
+      target_range: [6, 16]
+
+    sweet_berries:
+      display_name: sweet berries
+      items:
+        - sweet_berries
+      target_range: [12, 24]
+
+    kelp:
+      display_name: kelp
+      items:
+        - kelp
+      target_range: [16, 32]
+
+    flowers:
+      display_name: flowers
+      items:
+        - dandelion
+        - poppy
+        - blue_orchid
+        - allium
+        - azure_bluet
+        - red_tulip
+        - orange_tulip
+        - white_tulip
+        - pink_tulip
+        - oxeye_daisy
+        - cornflower
+        - lily_of_the_valley
+        - sunflower
+        - lilac
+        - rose_bush
+        - peony
+        - torchflower
+        - pitcher_plant
+      target_range: [4, 10]
+
+    ferns:
+      display_name: ferns
+      items:
+        - fern
+        - large_fern
+      target_range: [4, 10]
+
+    dead_bush:
+      display_name: dead bush
+      items:
+        - dead_bush
+      target_range: [4, 10]
+
+    leaves:
+      display_name: leaves
+      items:
+        - oak_leaves
+        - spruce_leaves
+        - birch_leaves
+        - jungle_leaves
+        - acacia_leaves
+        - dark_oak_leaves
+        - mangrove_leaves
+        - cherry_leaves
+        - azalea_leaves
+        - flowering_azalea_leaves
+      target_range: [8, 20]
+
+    moss_carpet:
+      display_name: moss carpet
+      items:
+        - moss_carpet
+      target_range: [4, 10]
+
+    vines:
+      display_name: vines
+      items:
+        - vine
+      target_range: [8, 20]
+
+    tall_grass:
+      display_name: tall grass
+      items:
+        - short_grass
+        - tall_grass
+      target_range: [6, 14]
+
+    saplings:
+      display_name: saplings
+      items:
+        - oak_sapling
+        - spruce_sapling
+        - birch_sapling
+        - jungle_sapling
+        - acacia_sapling
+        - dark_oak_sapling
+        - cherry_sapling
+        - mangrove_propagule
+      target_range: [2, 6]
