@@ -48,11 +48,35 @@ class MissionConfig(BaseModel):
         return input_value
 
 
+class PromptMetadata(BaseModel):
+    provider: str
+    model: str
+    schema_version: str
+
+
+class TaskTarget(BaseModel):
+    key: str
+    display_name: str
+    items: list[str] = Field(default_factory=list)
+    target_count: int
+    role: Literal["essential", "optional"] = "optional"
+    points: float = 0.0
+
+    @field_validator("target_count")
+    @classmethod
+    def target_count_must_be_positive(cls, input_value: int) -> int:
+        if input_value <= 0:
+            raise ValueError("target_count must be positive")
+        return input_value
+
+
 class Task(BaseModel):
     task_id: str
     seed: int
     minecraft_seed: int
-    prompt: str
+    prompt: str = ""
+    targets: list[TaskTarget] = Field(default_factory=list)
+    prompt_metadata: PromptMetadata | None = None
 
     def to_mission_config(self, base_config: MissionConfig) -> MissionConfig:
         data = base_config.model_dump()
@@ -89,6 +113,14 @@ class Mission(ABC):
         task: Task,
     ) -> MissionConfig:
         return task.to_mission_config(base_config)
+
+    def materialize_task(
+        self,
+        base_config: MissionConfig,
+        task: Task,
+        output_dir: Path,
+    ) -> Task:
+        return task
 
     @abstractmethod
     def configure_world(self, rcon: MCRcon, mission_config: MissionConfig) -> None: ...

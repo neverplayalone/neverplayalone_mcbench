@@ -28,8 +28,10 @@ const LOG_ITEMS = [
 const RESOURCE_ITEMS = {
   logs: LOG_ITEMS,
   cobblestone: ['cobblestone'],
-  coal: ['coal'],
   sand: ['sand', 'red_sand'],
+  dirt: ['dirt'],
+  gravel: ['gravel'],
+  clay: ['clay_ball'],
 };
 
 const UNSAFE_OR_USELESS_BLOCKS = new Set([
@@ -73,11 +75,13 @@ function plainPos(pos) {
 function parseTask(goal) {
   const lower = goal.toLowerCase();
   const countMatch = lower.match(/\b(?:gather|collect|get|mine)\s+(\d+)\b/)
-    || lower.match(/\b(\d+)\s+(?:logs?|cobblestone|cobble|coal|sand)\b/);
+    || lower.match(/\b(\d+)\s+(?:logs?|cobblestone|cobble|sand|dirt|gravel|clay)\b/);
   let resource = 'logs';
   if (lower.includes('cobblestone') || lower.includes('cobble')) resource = 'cobblestone';
-  else if (lower.includes('coal')) resource = 'coal';
   else if (lower.includes('sand')) resource = 'sand';
+  else if (lower.includes('dirt')) resource = 'dirt';
+  else if (lower.includes('gravel')) resource = 'gravel';
+  else if (lower.includes('clay')) resource = 'clay';
   else if (lower.includes('log')) resource = 'logs';
   return {
     resource,

@@ -19,11 +19,9 @@ from mcbench.missions.resource_gathering.environment import (
     configure_resource_gathering_world,
     setup_resource_gathering_agent,
 )
+from mcbench.missions.resource_gathering.prompting import materialize_task_prompt
 from mcbench.missions.resource_gathering.scoring import score_resource_gathering_run
-from mcbench.missions.resource_gathering.task import (
-    generate_task,
-    resolve_resource_assignment,
-)
+from mcbench.missions.resource_gathering.task import generate_task
 
 _CONFIG_DIR = Path(__file__).resolve().parent / "configs"
 
@@ -50,30 +48,37 @@ class ResourceGatheringMission(Mission):
             task_id=task_id,
         )
 
+    def materialize_task(
+        self,
+        base_config: MissionConfig,
+        task: Task,
+        output_dir: Path,
+    ) -> Task:
+        return materialize_task_prompt(task, output_dir)
+
     def build_mission_config(
         self,
         base_config: MissionConfig,
         task: Task,
     ) -> ResourceGatheringMissionConfig:
         typed_base_config = ResourceGatheringMissionConfig.model_validate(base_config.model_dump())
-        resource_name, menu_entry, target_count = resolve_resource_assignment(
-            typed_base_config,
-            task.seed,
-        )
         mission_data = typed_base_config.model_dump(exclude={"menu"})
         mission_data.update(
             {
                 "id": task.task_id,
                 "seed": task.minecraft_seed,
-                "biome": menu_entry.biome,
+                "biome": None,
                 "prompt": task.prompt,
                 "resources": [
                     ResourceSpec(
-                        item=resource_name,
-                        items=menu_entry.items,
-                        target_count=target_count,
-                        points=menu_entry.points,
+                        item=target.key,
+                        items=target.items,
+                        display_name=target.display_name,
+                        target_count=target.target_count,
+                        points=target.points,
+                        role=target.role,
                     ).model_dump()
+                    for target in task.targets
                 ],
             }
         )

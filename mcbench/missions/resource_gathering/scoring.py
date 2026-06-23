@@ -19,24 +19,29 @@ def score_resource_gathering_run(
     final_snapshot = final_snapshot or {}
     inventory = agent_run_trace.final_state.inventory
     resources: list[dict[str, Any]] = []
-    resource_score = 0.0
+    base_score = 0.0
     max_resource_score = 0.0
 
     for resource_spec in mission_config.resources:
         count = resource_count(inventory, resource_spec)
         achieved = min(count, resource_spec.target_count)
-        points = resource_spec.points * achieved / resource_spec.target_count
+        completion_ratio = achieved / resource_spec.target_count
+        points = resource_spec.points * completion_ratio
         max_resource_score += resource_spec.points
-        resource_score += points
+        base_score += points
         resources.append(
             {
                 "item": resource_spec.item,
+                "display_name": resource_spec.display_name
+                or resource_spec.item.replace("_", " "),
                 "items": counted_items(resource_spec),
                 "count": count,
                 "target_count": resource_spec.target_count,
                 "achieved": achieved,
+                "completion_ratio": completion_ratio,
                 "points": points,
                 "max_points": resource_spec.points,
+                "role": resource_spec.role,
             }
         )
 
@@ -49,7 +54,7 @@ def score_resource_gathering_run(
         mission_config.scoring.distance_bands,
         mission_config.scoring.distance_floor_mult,
     )
-    total = resource_score * multiplier
+    total = base_score * multiplier
     max_score = max_resource_score
 
     play_start = agent_run_trace.agent_ready_at or agent_run_trace.started_at
@@ -73,7 +78,7 @@ def score_resource_gathering_run(
         "max_score": max_score,
         "spawned": spawned,
         "status": status,
-        "resource_score": resource_score,
+        "resource_score": base_score,
         "distance_multiplier": multiplier,
         "time_efficiency": time_efficiency,
         "elapsed_seconds": elapsed,
