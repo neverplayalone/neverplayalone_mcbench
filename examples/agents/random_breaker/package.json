@@ -1,5 +1,5 @@
 {
-  "name": "mcbench-random-breaker",
+  "name": "npabench-random-breaker",
   "version": "0.1.0",
   "description": "Simple local Mineflayer agent that walks randomly and breaks nearby blocks.",
   "main": "index.js",

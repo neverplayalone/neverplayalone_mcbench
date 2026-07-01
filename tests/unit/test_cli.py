@@ -4,8 +4,8 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from mcbench.cli import main
-from mcbench.recording.replay_exporter import export_mcpr
+from npabench.cli import main
+from npabench.recording.replay_exporter import export_mcpr
 
 
 def test_cli_help_smoke() -> None:

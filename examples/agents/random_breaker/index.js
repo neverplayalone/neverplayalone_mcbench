@@ -1,4 +1,4 @@
-// Random breaker baseline for mcbench resource gathering.
+// Random breaker baseline for npabench resource gathering.
 //
 // No LLM, no API key. The agent walks with direct Mineflayer controls and
 // breaks nearby diggable blocks. It is intentionally crude but active: useful
@@ -8,11 +8,11 @@ const mineflayer = require('mineflayer');
 const Vec3 = require('vec3');
 const { pathfinder, Movements, goals } = require('mineflayer-pathfinder');
 
-const host = process.env.MCBENCH_HOST || '127.0.0.1';
-const port = parseInt(process.env.MCBENCH_PORT || '25565', 10);
-const username = process.env.MCBENCH_AGENT_USERNAME || 'mcbench_agent';
-const prompt = process.env.MCBENCH_AGENT_PROMPT || '';
-const timeoutSec = parseInt(process.env.MCBENCH_TIMEOUT_SECONDS || '1200', 10);
+const host = process.env.NPABENCH_HOST || '127.0.0.1';
+const port = parseInt(process.env.NPABENCH_PORT || '25565', 10);
+const username = process.env.NPABENCH_AGENT_USERNAME || 'npabench_agent';
+const prompt = process.env.NPABENCH_AGENT_PROMPT || '';
+const timeoutSec = parseInt(process.env.NPABENCH_TIMEOUT_SECONDS || '1200', 10);
 
 const LOG_ITEMS = [
   'oak_log',
@@ -288,7 +288,7 @@ async function returnNearSpawn(bot, spawnPos) {
 }
 
 const task = parseTask(prompt);
-const deadline = Date.now() + Math.max(1, timeoutSec - 20) * 1000;
+let deadline = 0;
 let finished = false;
 let mined = 0;
 let stopRequested = false;
@@ -329,6 +329,7 @@ bot.once('spawn', async () => {
 
   const kitReady = await waitForSetup(bot);
   const spawnPos = bot.entity.position.clone();
+  deadline = Date.now() + Math.max(1, timeoutSec - 20) * 1000;
   emit('info', { msg: 'spawned', kitReady, spawnPos: plainPos(spawnPos) });
 
   const tried = new Set();

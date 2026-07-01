@@ -2,27 +2,27 @@
 // the target agent, and writes packets that can be exported to ReplayMod.
 //
 // Env vars (set by the Python runner):
-//   MCBENCH_RECORDER_HOST       (default: 127.0.0.1)
-//   MCBENCH_RECORDER_PORT       (default: 25565)
-//   MCBENCH_RECORDER_USERNAME   (default: recorder_bot)
-//   MCBENCH_RECORDER_TARGET     (the agent's username to spectate)
-//   MCBENCH_RECORDER_PACKET_OUTPUT
-//   MCBENCH_RECORDER_PACKET_MANIFEST
+//   NPABENCH_RECORDER_HOST       (default: 127.0.0.1)
+//   NPABENCH_RECORDER_PORT       (default: 25565)
+//   NPABENCH_RECORDER_USERNAME   (default: recorder_bot)
+//   NPABENCH_RECORDER_TARGET     (the agent's username to spectate)
+//   NPABENCH_RECORDER_PACKET_OUTPUT
+//   NPABENCH_RECORDER_PACKET_MANIFEST
 //
 // Lifecycle: runs until SIGTERM; flushes the packet log cleanly on shutdown.
 
 const mineflayer = require('mineflayer');
 const { createRecorder } = require('./recorder');
 
-const HOST = process.env.MCBENCH_RECORDER_HOST || '127.0.0.1';
-const PORT = parseInt(process.env.MCBENCH_RECORDER_PORT || '25565', 10);
-const USERNAME = process.env.MCBENCH_RECORDER_USERNAME || 'recorder_bot';
-const TARGET = process.env.MCBENCH_RECORDER_TARGET || '';
-const PACKET_OUTPUT = process.env.MCBENCH_RECORDER_PACKET_OUTPUT;
-const PACKET_MANIFEST = process.env.MCBENCH_RECORDER_PACKET_MANIFEST;
+const HOST = process.env.NPABENCH_RECORDER_HOST || '127.0.0.1';
+const PORT = parseInt(process.env.NPABENCH_RECORDER_PORT || '25565', 10);
+const USERNAME = process.env.NPABENCH_RECORDER_USERNAME || 'recorder_bot';
+const TARGET = process.env.NPABENCH_RECORDER_TARGET || '';
+const PACKET_OUTPUT = process.env.NPABENCH_RECORDER_PACKET_OUTPUT;
+const PACKET_MANIFEST = process.env.NPABENCH_RECORDER_PACKET_MANIFEST;
 
 if (!PACKET_OUTPUT) {
-  console.error('MCBENCH_RECORDER_PACKET_OUTPUT is required');
+  console.error('NPABENCH_RECORDER_PACKET_OUTPUT is required');
   process.exit(2);
 }
 

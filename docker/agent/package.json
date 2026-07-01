@@ -1,5 +1,5 @@
 {
-  "name": "mcbench-agent-runtime",
+  "name": "npabench-agent-runtime",
   "version": "0.1.0",
   "private": true,
   "description": "Baked dependency set for sandboxed benchmark agents. Agent source is bind-mounted at run time and resolves these via NODE_PATH.",

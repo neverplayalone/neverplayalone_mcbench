@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from mcbench.agents.base import AgentSpec
-from mcbench.evaluation.evaluate import AgentMode
-from mcbench.evaluation.run_slot import AgentRunSlot, ServerEndpoint
-from mcbench.evaluation.single_runner import run_single_evaluation
-from mcbench.missions.base import MissionConfig
+from npabench.agents.base import AgentSpec
+from npabench.evaluation.evaluate import AgentMode
+from npabench.evaluation.run_slot import AgentRunSlot, ServerEndpoint
+from npabench.evaluation.single_runner import run_single_evaluation
+from npabench.missions.base import MissionConfig
 
 
 def test_run_single_evaluation_writes_artifacts(
@@ -19,13 +19,13 @@ def test_run_single_evaluation_writes_artifacts(
     mission_config = MissionConfig(id="fake-task", seed=42, duration_seconds=30)
     agent_run_slot = AgentRunSlot.allocate(slot_id=2, data_root=tmp_path / "slot")
 
-    monkeypatch.setattr("mcbench.evaluation.single_runner.create_agent", lambda *args, **kwargs: fake_agent)
-    monkeypatch.setattr("mcbench.evaluation.single_runner.ensure_agent_image", lambda: "image")
-    monkeypatch.setattr("mcbench.evaluation.single_runner.start_agent_run_slot", lambda *args, **kwargs: None)
-    monkeypatch.setattr("mcbench.evaluation.single_runner.stop_agent_run_slot", lambda *args, **kwargs: None)
-    monkeypatch.setattr("mcbench.evaluation.single_runner.cleanup_run_worlds", lambda *args, **kwargs: None)
+    monkeypatch.setattr("npabench.evaluation.single_runner.create_agent", lambda *args, **kwargs: fake_agent)
+    monkeypatch.setattr("npabench.evaluation.single_runner.ensure_agent_image", lambda: "image")
+    monkeypatch.setattr("npabench.evaluation.single_runner.start_agent_run_slot", lambda *args, **kwargs: None)
+    monkeypatch.setattr("npabench.evaluation.single_runner.stop_agent_run_slot", lambda *args, **kwargs: None)
+    monkeypatch.setattr("npabench.evaluation.single_runner.cleanup_run_worlds", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        "mcbench.evaluation.single_runner._wait_for_slot_ready",
+        "npabench.evaluation.single_runner._wait_for_slot_ready",
         lambda slot: ServerEndpoint(
             host=slot.host,
             game_port=slot.game_port,
@@ -33,7 +33,7 @@ def test_run_single_evaluation_writes_artifacts(
             rcon_password=slot.rcon_password,
         ),
     )
-    monkeypatch.setattr("mcbench.evaluation.single_runner.rcon_session", fake_rcon_session)
+    monkeypatch.setattr("npabench.evaluation.single_runner.rcon_session", fake_rcon_session)
 
     report = run_single_evaluation(
         fake_mission,

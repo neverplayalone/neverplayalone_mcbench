@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from mcbench.agents.base import AgentSpec
-from mcbench.evaluation.batch_runner import run_batch_evaluation
-from mcbench.evaluation.evaluate import AgentMode, AgentRunReport
-from mcbench.evaluation.run_slot import AgentRunSlot
-from mcbench.missions.base import MissionConfig
+from npabench.agents.base import AgentSpec
+from npabench.evaluation.batch_runner import run_batch_evaluation
+from npabench.evaluation.evaluate import AgentMode, AgentRunReport
+from npabench.evaluation.run_slot import AgentRunSlot
+from npabench.missions.base import MissionConfig
 
 
 def test_run_batch_evaluation_uses_safe_output_dir_names(
@@ -34,7 +34,7 @@ def test_run_batch_evaluation_uses_safe_output_dir_names(
         )
 
     monkeypatch.setattr(
-        "mcbench.evaluation.batch_runner.run_single_evaluation",
+        "npabench.evaluation.batch_runner.run_single_evaluation",
         fake_run_single_evaluation,
     )
 

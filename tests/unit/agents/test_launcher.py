@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from mcbench.agents.launcher import detect_launch
+from npabench.agents.launcher import detect_launch
 
 
 def test_detect_launch_for_node_directory(tmp_path) -> None:
