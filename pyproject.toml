@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "neverplayalone-mcbench"
+name = "neverplayalone-bench"
 version = "0.1.0"
 description = "Benchmark harness for mineflayer-style Minecraft agents on real servers"
 readme = "README.md"
@@ -24,14 +24,14 @@ dev = [
 ]
 
 [project.scripts]
-mcbench = "mcbench.cli:main"
+npabench = "npabench.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["mcbench*"]
+include = ["npabench*"]
 
 [tool.setuptools.package-data]
-"mcbench.missions.resource_gathering" = ["configs/*.yaml"]
+"npabench.missions.resource_gathering" = ["configs/*.yaml"]
 
 [tool.ruff]
 line-length = 100

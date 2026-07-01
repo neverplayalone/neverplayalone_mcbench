@@ -71,7 +71,7 @@ function createRecorder(client, opts = {}) {
   writeEvent({
     kind: 'meta',
     data: {
-      schema: 'mcbench.packetlog.v1',
+      schema: 'npabench.packetlog.v1',
       host,
       port,
       username,
@@ -143,7 +143,7 @@ function createRecorder(client, opts = {}) {
       });
       if (manifest) {
         fs.writeFileSync(manifest, JSON.stringify({
-          schema: 'mcbench.packetlog.v1',
+          schema: 'npabench.packetlog.v1',
           output,
           startedAt: new Date(startedAt).toISOString(),
           endedAt: new Date(endedAt).toISOString(),

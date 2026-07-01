@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from mcbench.missions.base import StartingItem
-from mcbench.missions.resource_gathering.environment import starting_item_stack
-from mcbench.missions.resource_gathering import ResourceGatheringMission
-from mcbench.missions.resource_gathering.task import ESSENTIAL_TARGET_KEYS, generate_task
+from npabench.missions.base import StartingItem
+from npabench.missions.resource_gathering.environment import starting_item_stack
+from npabench.missions.resource_gathering import ResourceGatheringMission
+from npabench.missions.resource_gathering.task import ESSENTIAL_TARGET_KEYS, generate_task
 
 
 def test_bundled_config_loads() -> None:

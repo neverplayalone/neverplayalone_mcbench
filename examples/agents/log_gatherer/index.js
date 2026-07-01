@@ -7,11 +7,11 @@
 const mineflayer = require('mineflayer');
 const { pathfinder, Movements, goals } = require('mineflayer-pathfinder');
 
-const host = process.env.MCBENCH_HOST || '127.0.0.1';
-const port = parseInt(process.env.MCBENCH_PORT || '25565', 10);
-const username = process.env.MCBENCH_AGENT_USERNAME || 'mcbench_agent';
-const prompt = process.env.MCBENCH_AGENT_PROMPT || '';
-const timeoutSec = parseInt(process.env.MCBENCH_TIMEOUT_SECONDS || '1200', 10);
+const host = process.env.NPABENCH_HOST || '127.0.0.1';
+const port = parseInt(process.env.NPABENCH_PORT || '25565', 10);
+const username = process.env.NPABENCH_AGENT_USERNAME || 'npabench_agent';
+const prompt = process.env.NPABENCH_AGENT_PROMPT || '';
+const timeoutSec = parseInt(process.env.NPABENCH_TIMEOUT_SECONDS || '1200', 10);
 
 const LOG_NAMES = [
   'oak_log',
@@ -154,7 +154,7 @@ const bot = mineflayer.createBot({
 bot.loadPlugin(pathfinder);
 
 const targetCount = targetFromGoal(prompt);
-const deadline = Date.now() + Math.max(1, timeoutSec - 30) * 1000;
+let deadline = 0;
 let finished = false;
 let mined = 0;
 let stopRequested = false;
@@ -181,6 +181,7 @@ bot.once('spawn', async () => {
 
   const kitReady = await waitForKit(bot);
   const spawnPos = bot.entity.position.clone();
+  deadline = Date.now() + Math.max(1, timeoutSec - 30) * 1000;
   emit('info', { msg: 'spawned', kitReady, spawnPos });
   setTimeout(() => finish('time budget exhausted'), Math.max(1, timeoutSec - 30) * 1000);
 

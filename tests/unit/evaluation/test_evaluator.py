@@ -4,24 +4,24 @@ import json
 
 import pytest
 
-from mcbench.agents.base import AgentSpec
-from mcbench.evaluation.evaluate import (
+from npabench.agents.base import AgentSpec
+from npabench.evaluation.evaluate import (
     AgentBatchReport,
     AgentMode,
     AgentRunReport,
     evaluate_multiple_agents,
     evaluate_single_agent,
 )
-from mcbench.missions.base import MissionConfig
+from npabench.missions.base import MissionConfig
 
 
 def test_evaluate_returns_typed_report(monkeypatch, tmp_path, fake_mission) -> None:
     agent_spec = AgentSpec(name="agent_a", path=tmp_path / "agent_a")
     agent_spec.path.mkdir()
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
+    monkeypatch.setattr("npabench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate._load_mission_config",
+        "npabench.evaluation.evaluate._load_mission_config",
         lambda mission, config_path: MissionConfig(id="resource_gathering"),
     )
 
@@ -30,9 +30,9 @@ def test_evaluate_returns_typed_report(monkeypatch, tmp_path, fake_mission) -> N
             output_dir.mkdir(parents=True, exist_ok=True)
             return output_dir
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
+    monkeypatch.setattr("npabench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate.run_single_evaluation",
+        "npabench.evaluation.evaluate.run_single_evaluation",
         lambda *args, **kwargs: AgentRunReport(
             agent_name="agent_a",
             agent_kind=None,
@@ -70,9 +70,9 @@ def test_evaluate_multiple_agents_returns_dict_keyed_by_agent(
     agent_a.path.mkdir()
     agent_b.path.mkdir()
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
+    monkeypatch.setattr("npabench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate._load_mission_config",
+        "npabench.evaluation.evaluate._load_mission_config",
         lambda mission, config_path: MissionConfig(id="resource_gathering"),
     )
 
@@ -81,9 +81,9 @@ def test_evaluate_multiple_agents_returns_dict_keyed_by_agent(
             output_dir.mkdir(parents=True, exist_ok=True)
             return output_dir
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
+    monkeypatch.setattr("npabench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate.run_batch_evaluation",
+        "npabench.evaluation.evaluate.run_batch_evaluation",
         lambda *args, **kwargs: {
             "agent_a": AgentRunReport(
                 agent_name="agent_a",
@@ -139,9 +139,9 @@ def test_evaluate_multiple_agents_rejects_output_safe_name_collisions(
     agent_a.path.mkdir()
     agent_b.path.mkdir()
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
+    monkeypatch.setattr("npabench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate._load_mission_config",
+        "npabench.evaluation.evaluate._load_mission_config",
         lambda mission, config_path: MissionConfig(id="resource_gathering"),
     )
 
@@ -164,11 +164,11 @@ def test_evaluate_single_agent_uses_timestamp_run_root_by_default(
     run_root = tmp_path / "results" / "20260630_120000"
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.RESULTS_DIR", tmp_path / "results")
-    monkeypatch.setattr("mcbench.evaluation.evaluate._run_id_now", lambda: "20260630_120000")
-    monkeypatch.setattr("mcbench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
+    monkeypatch.setattr("npabench.evaluation.evaluate.RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr("npabench.evaluation.evaluate._run_id_now", lambda: "20260630_120000")
+    monkeypatch.setattr("npabench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate._load_mission_config",
+        "npabench.evaluation.evaluate._load_mission_config",
         lambda mission, config_path: MissionConfig(id="resource_gathering"),
     )
 
@@ -178,7 +178,7 @@ def test_evaluate_single_agent_uses_timestamp_run_root_by_default(
             output_dir.mkdir(parents=True, exist_ok=True)
             return output_dir
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
+    monkeypatch.setattr("npabench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
 
     def fake_run_single_evaluation(*args, **kwargs):
         output_dir = kwargs["output_dir"]
@@ -200,7 +200,7 @@ def test_evaluate_single_agent_uses_timestamp_run_root_by_default(
         )
 
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate.run_single_evaluation",
+        "npabench.evaluation.evaluate.run_single_evaluation",
         fake_run_single_evaluation,
     )
 
@@ -230,11 +230,11 @@ def test_evaluate_multiple_agents_uses_timestamp_run_root_by_default(
     run_root = tmp_path / "results" / "20260630_120000"
     captured: dict[str, object] = {}
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.RESULTS_DIR", tmp_path / "results")
-    monkeypatch.setattr("mcbench.evaluation.evaluate._run_id_now", lambda: "20260630_120000")
-    monkeypatch.setattr("mcbench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
+    monkeypatch.setattr("npabench.evaluation.evaluate.RESULTS_DIR", tmp_path / "results")
+    monkeypatch.setattr("npabench.evaluation.evaluate._run_id_now", lambda: "20260630_120000")
+    monkeypatch.setattr("npabench.evaluation.evaluate.get_mission", lambda mission_id: fake_mission)
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate._load_mission_config",
+        "npabench.evaluation.evaluate._load_mission_config",
         lambda mission, config_path: MissionConfig(id="resource_gathering"),
     )
 
@@ -244,7 +244,7 @@ def test_evaluate_multiple_agents_uses_timestamp_run_root_by_default(
             output_dir.mkdir(parents=True, exist_ok=True)
             return output_dir
 
-    monkeypatch.setattr("mcbench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
+    monkeypatch.setattr("npabench.evaluation.evaluate.ReferenceWorldBuilder", lambda: FakeBuilder())
 
     def fake_run_batch_evaluation(*args, **kwargs):
         captured["agents_output_dir"] = kwargs["output_dir"]
@@ -282,7 +282,7 @@ def test_evaluate_multiple_agents_uses_timestamp_run_root_by_default(
         }
 
     monkeypatch.setattr(
-        "mcbench.evaluation.evaluate.run_batch_evaluation",
+        "npabench.evaluation.evaluate.run_batch_evaluation",
         fake_run_batch_evaluation,
     )
 

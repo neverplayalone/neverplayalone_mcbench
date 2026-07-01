@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from mcbench.missions.base import PromptMetadata, Task, TaskTarget
-from mcbench.missions.resource_gathering.prompting import _prompt_brief, materialize_task_prompt
+from npabench.missions.base import PromptMetadata, Task, TaskTarget
+from npabench.missions.resource_gathering.prompting import (
+    PROMPT_SCHEMA_VERSION,
+    _prompt_brief,
+    materialize_task_prompt,
+)
 
 
 def _sample_task() -> Task:
@@ -64,7 +68,7 @@ def test_materialize_task_prompt_reuses_cached_prompt(tmp_path) -> None:
             "prompt_metadata": PromptMetadata(
                 provider="openai",
                 model="gpt-test",
-                schema_version="resource_gathering.v1",
+                schema_version=PROMPT_SCHEMA_VERSION,
             ),
         }
     )
@@ -78,7 +82,7 @@ def test_materialize_task_prompt_reuses_cached_prompt(tmp_path) -> None:
 
 def test_materialize_task_prompt_requires_openai_config_when_cache_missing(tmp_path, monkeypatch) -> None:
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("MCBENCH_PROMPT_MODEL", raising=False)
+    monkeypatch.delenv("NPABENCH_PROMPT_MODEL", raising=False)
 
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
         materialize_task_prompt(_sample_task(), tmp_path)

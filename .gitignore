@@ -1,8 +1,8 @@
 # Project
 results/
 recording/
-!mcbench/recording/
-!mcbench/recording/*.py
+!npabench/recording/
+!npabench/recording/*.py
 tasks/generated/
 docker/data/
 node_modules/

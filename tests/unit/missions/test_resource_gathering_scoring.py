@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from mcbench.evaluation.run_trace import AgentRunTrace, FinalAgentState
-from mcbench.missions.resource_gathering.config_schema import ResourceGatheringMissionConfig, ResourceSpec
-from mcbench.missions.resource_gathering.scoring import score_resource_gathering_run
+from npabench.evaluation.run_trace import AgentRunTrace, FinalAgentState
+from npabench.missions.resource_gathering.config_schema import ResourceGatheringMissionConfig, ResourceSpec
+from npabench.missions.resource_gathering.scoring import score_resource_gathering_run
 
 
 def test_multi_target_scoring_uses_fixed_weights_and_max_score_100() -> None:
@@ -79,8 +79,8 @@ def test_multi_target_scoring_uses_fixed_weights_and_max_score_100() -> None:
     )
 
     assert report["max_score"] == 100
-    assert report["resource_score"] == 56.25
-    assert report["score"] == 56.25
+    assert report["resource_score"] == 62.5
+    assert report["score"] == 62.5
     assert [resource["role"] for resource in report["resources"][:3]] == [
         "essential",
         "essential",

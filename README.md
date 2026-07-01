@@ -1,6 +1,6 @@
-# Never Play Alone MCBench
+# Never Play Alone Benchmark
 
-Minecraft benchmark harness for protocol agents.
+NPABench is a Minecraft benchmark harness for protocol agents.
 
 ## Quick Start
 
@@ -9,7 +9,7 @@ pip install -e .
 (cd tools/recorder && npm install)
 (cd examples/agents/log_gatherer && npm install)
 
-mcbench run log_gatherer=examples/agents/log_gatherer \
+npabench run log_gatherer=examples/agents/log_gatherer \
   --mission resource_gathering \
   --seed 42
 ```
@@ -17,7 +17,7 @@ mcbench run log_gatherer=examples/agents/log_gatherer \
 Multiple agents on the same generated task:
 
 ```bash
-mcbench run \
+npabench run \
   agent_a=/path/to/agent_a \
   agent_b=/path/to/agent_b \
   --mission resource_gathering \
@@ -28,13 +28,13 @@ mcbench run \
 Host subprocess mode for trusted local debugging:
 
 ```bash
-mcbench run log_gatherer=examples/agents/log_gatherer --no-sandbox
+npabench run log_gatherer=examples/agents/log_gatherer --no-sandbox
 ```
 
 ## Python API
 
 ```python
-from mcbench import AgentSpec, evaluate_single_agent
+from npabench import AgentSpec, evaluate_single_agent
 
 report = evaluate_single_agent(
     AgentSpec(name="log_gatherer", path="examples/agents/log_gatherer"),
@@ -47,7 +47,7 @@ print(report.score, report.status)
 ## Layout
 
 ```text
-mcbench/
+npabench/
   config.py
   cli.py
   missions/

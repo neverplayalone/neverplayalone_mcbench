@@ -6,9 +6,9 @@ from typing import Any
 
 import pytest
 
-from mcbench.agents.base import Agent, AgentRunContext, AgentSpec
-from mcbench.evaluation.run_trace import FinalAgentState, TraceEvent
-from mcbench.missions.base import Mission, MissionConfig, Task
+from npabench.agents.base import Agent, AgentRunContext, AgentSpec
+from npabench.evaluation.run_trace import FinalAgentState, TraceEvent
+from npabench.missions.base import Mission, MissionConfig, Task
 
 
 class FakeAgent(Agent):

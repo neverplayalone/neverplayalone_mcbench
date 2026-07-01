@@ -1,5 +1,5 @@
 {
-  "name": "mcbench-log-gatherer",
+  "name": "npabench-log-gatherer",
   "version": "0.1.0",
   "description": "Reference resource-gathering agent: gathers logs and returns near spawn with them in inventory.",
   "main": "index.js",
